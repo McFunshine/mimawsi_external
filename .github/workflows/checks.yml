@@ -1,0 +1,19 @@
+name: checks
+
+# Every push and every pull request. A tool is published from this repository,
+# so "the checks passed" has to mean the checks passed on exactly what is here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm test

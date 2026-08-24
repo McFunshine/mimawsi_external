@@ -1,0 +1,9 @@
+{
+  "id": "word-counter",
+  "slug": "word-counter",
+  "title": "Word Counter",
+  "description": "Counts words, characters and lines in whatever you paste. Nothing leaves the page.",
+  "tags": [],
+  "sha256": "b98a01c27bcd34b5c7863bb2913582e765188095b303ed67f854e01bf64dc919",
+  "sizeBytes": 2973
+}
