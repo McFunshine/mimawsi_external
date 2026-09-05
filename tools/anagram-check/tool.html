@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+<meta charset="utf-8">
+<title>Anagram Check</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, -apple-system, sans-serif; margin: 0 auto; max-width: 40rem; padding: 2rem 1.25rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  p.lede { margin: 0 0 1.5rem; opacity: .7; font-size: .95rem; }
+  label { display: block; font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; opacity: .6; margin: 0 0 .3rem; }
+  input[type=text] { width: 100%; font: inherit; padding: .6rem .7rem; border-radius: .4rem;
+    border: 1px solid currentColor; background: transparent; color: inherit; box-sizing: border-box; }
+  .field { margin-bottom: 1rem; }
+  .verdict { font-size: 1.5rem; font-weight: 600; margin: 1.5rem 0 .5rem; min-height: 2rem; }
+  .verdict.yes::before { content: '✓ '; }
+  .verdict.no::before  { content: '✗ '; }
+  .detail { opacity: .75; font-size: .92rem; margin: 0 0 1.25rem; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid; border-color: color-mix(in srgb, currentColor 15%, transparent); }
+  th { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; opacity: .55; font-weight: 600; }
+  td.count { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .off { opacity: 1; font-weight: 600; }
+  .opts { display: flex; gap: 1.2rem; flex-wrap: wrap; margin: .25rem 0 1rem; font-size: .9rem; }
+  .opts label { display: inline-flex; align-items: center; gap: .35rem; text-transform: none;
+    letter-spacing: 0; font-size: .9rem; opacity: .85; margin: 0; }
+</style>
+</head>
+<body>
+  <h1>Anagram Check</h1>
+  <p class="lede">Are two phrases made of exactly the same letters? Nothing leaves this page.</p>
+
+  <div class="field">
+    <label for="a">First phrase</label>
+    <input id="a" type="text" autocomplete="off" spellcheck="false" value="Listen">
+  </div>
+
+  <div class="field">
+    <label for="b">Second phrase</label>
+    <input id="b" type="text" autocomplete="off" spellcheck="false" value="Silent">
+  </div>
+
+  <div class="opts">
+    <label><input id="ignoreSpaces" type="checkbox" checked=""> Ignore spaces and punctuation</label>
+    <label><input id="ignoreCase" type="checkbox" checked=""> Ignore capitals</label>
+  </div>
+
+  <p class="verdict" id="verdict"></p>
+  <p class="detail" id="detail"></p>
+
+  <table>
+    <thead>
+      <tr><th>Letter</th><th>First</th><th>Second</th><th>Difference</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+<script>
+  var a = document.getElementById('a');
+  var b = document.getElementById('b');
+  var ignoreSpaces = document.getElementById('ignoreSpaces');
+  var ignoreCase = document.getElementById('ignoreCase');
+  var verdict = document.getElementById('verdict');
+  var detail = document.getElementById('detail');
+  var rows = document.getElementById('rows');
+
+  function normalise(s) {
+    var out = s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    if (ignoreCase.checked) out = out.toLowerCase();
+    if (ignoreSpaces.checked) out = out.replace(/[^\p{L}\p{N}]/gu, '');
+    else out = out.replace(/\s/g, ' ');
+    return out;
+  }
+
+  function tally(s) {
+    var counts = Object.create(null);
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      counts[ch] = (counts[ch] || 0) + 1;
+    }
+    return counts;
+  }
+
+  function compare() {
+    var left = normalise(a.value);
+    var right = normalise(b.value);
+    var one = tally(left);
+    var two = tally(right);
+
+    var letters = Object.keys(one).concat(Object.keys(two))
+      .filter(function (v, i, arr) { return arr.indexOf(v) === i; })
+      .sort();
+
+    rows.replaceChildren();
+    var mismatches = 0;
+
+    letters.forEach(function (ch) {
+      var l = one[ch] || 0, r = two[ch] || 0, diff = l - r;
+      if (diff !== 0) mismatches++;
+      var tr = document.createElement('tr');
+      [ch === ' ' ? '(space)' : ch, String(l), String(r), diff === 0 ? '—' : (diff > 0 ? '+' + diff : String(diff))]
+        .forEach(function (text, i) {
+          var td = document.createElement('td');
+          td.textContent = text;
+          if (i > 0) td.className = 'count';
+          if (i === 3 && diff !== 0) td.classList.add('off');
+          tr.appendChild(td);
+        });
+      rows.appendChild(tr);
+    });
+
+    if (left === '' && right === '') {
+      verdict.textContent = '';
+      verdict.className = 'verdict';
+      detail.textContent = 'Type something in both boxes.';
+      return;
+    }
+
+    var same = mismatches === 0;
+    verdict.textContent = same ? 'Anagrams' : 'Not anagrams';
+    verdict.className = 'verdict ' + (same ? 'yes' : 'no');
+    detail.textContent = same
+      ? left.length + ' letters, rearranged.'
+      : mismatches + (mismatches === 1 ? ' letter differs' : ' letters differ') +
+        ' · ' + left.length + ' against ' + right.length + ' letters.';
+  }
+
+  [a, b, ignoreSpaces, ignoreCase].forEach(function (el) {
+    el.addEventListener('input', compare);
+    el.addEventListener('change', compare);
+  });
+  compare();
+</script>
+
+
+</body></html>

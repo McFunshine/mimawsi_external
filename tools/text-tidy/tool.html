@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+<meta charset="utf-8">
+<title>Text Tidy</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, -apple-system, sans-serif; margin: 0 auto; max-width: 46rem; padding: 2rem 1.25rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  p.lede { margin: 0 0 1.25rem; opacity: .7; font-size: .95rem; }
+  textarea { width: 100%; min-height: 9rem; font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: .7rem; border-radius: .4rem; border: 1px solid currentColor; background: transparent;
+    color: inherit; box-sizing: border-box; resize: vertical; }
+  .ops { display: flex; flex-wrap: wrap; gap: .4rem; margin: .9rem 0; }
+  .ops button { font: inherit; font-size: .9rem; padding: .4rem .85rem; border-radius: 999px;
+    border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; opacity: .8; }
+  .ops button:hover, .ops button:focus-visible { opacity: 1; }
+  .row { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: .5rem; }
+  .stats { opacity: .65; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .primary { font: inherit; padding: .45rem 1.1rem; border-radius: .4rem;
+    border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+  label { font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; opacity: .6; display: block; margin: 1rem 0 .35rem; }
+</style>
+</head>
+<body>
+  <h1>Text Tidy</h1>
+  <p class="lede">Paste messy text, pick a change. Nothing leaves this page.</p>
+
+  <label for="input">Your text</label>
+  <textarea id="input" spellcheck="false" placeholder="Paste anything here…"></textarea>
+
+  <div class="ops" id="ops"></div>
+
+  <label for="output">Result</label>
+  <textarea id="output" spellcheck="false" readonly=""></textarea>
+
+  <div class="row">
+    <button class="primary" id="copy" type="button">Copy result</button>
+    <button class="primary" id="reuse" type="button">Use as input</button>
+    <span class="stats" id="stats"></span>
+  </div>
+
+<script>
+  var input = document.getElementById('input');
+  var output = document.getElementById('output');
+  var stats = document.getElementById('stats');
+
+  function titleCase(s) {
+    var small = ['a','an','and','as','at','but','by','for','in','of','on','or','the','to','with'];
+    return s.toLowerCase().replace(/\S+/g, function (w, i) {
+      if (i !== 0 && small.indexOf(w) !== -1) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    });
+  }
+
+  function sentenceCase(s) {
+    return s.toLowerCase().replace(/(^\s*\w|[.!?]\s+\w)/g, function (c) { return c.toUpperCase(); });
+  }
+
+  var OPS = [
+    { name: 'Tidy spacing', run: function (s) {
+        return s.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+      } },
+    { name: 'Straight quotes', run: function (s) {
+        return s.replace(/[‘’‛]/g, "'").replace(/[“”]/g, '"')
+                .replace(/—/g, '--').replace(/–/g, '-').replace(/…/g, '...');
+      } },
+    { name: 'Sentence case', run: sentenceCase },
+    { name: 'Title Case', run: titleCase },
+    { name: 'UPPER', run: function (s) { return s.toUpperCase(); } },
+    { name: 'lower', run: function (s) { return s.toLowerCase(); } },
+    { name: 'slug-for-urls', run: function (s) {
+        return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      } },
+    { name: 'Remove line breaks', run: function (s) { return s.replace(/\s*\n\s*/g, ' ').trim(); } },
+    { name: 'Sort lines', run: function (s) {
+        return s.split('\n').filter(function (l) { return l.trim() !== ''; })
+                .sort(function (a, b) { return a.localeCompare(b); }).join('\n');
+      } },
+    { name: 'Remove duplicate lines', run: function (s) {
+        var seen = Object.create(null), out = [];
+        s.split('\n').forEach(function (l) {
+          var k = l.trim();
+          if (k === '') return;
+          if (!seen[k]) { seen[k] = true; out.push(l); }
+        });
+        return out.join('\n');
+      } },
+    { name: 'Reverse', run: function (s) { return s.split('').reverse().join(''); } }
+  ];
+
+  function describe(s) {
+    var words = s.trim() === '' ? 0 : s.trim().split(/\s+/).length;
+    var lines = s === '' ? 0 : s.split('\n').length;
+    stats.textContent = words + (words === 1 ? ' word' : ' words') + ' · ' +
+                        s.length + ' characters · ' + lines + (lines === 1 ? ' line' : ' lines');
+  }
+
+  var ops = document.getElementById('ops');
+  OPS.forEach(function (op) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = op.name;
+    b.addEventListener('click', function () {
+      output.value = op.run(input.value);
+      describe(output.value);
+    });
+    ops.appendChild(b);
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    output.select();
+    document.execCommand('copy');
+  });
+
+  document.getElementById('reuse').addEventListener('click', function () {
+    input.value = output.value;
+    output.value = '';
+    describe(input.value);
+  });
+
+  input.addEventListener('input', function () { describe(input.value); });
+  describe('');
+</script>
+
+
+</body></html>

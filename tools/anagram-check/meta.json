@@ -1,0 +1,9 @@
+{
+  "id": "72b20e16-4b3e-4f1d-9e9e-0aaa988520c9",
+  "slug": "anagram-check",
+  "title": "Anagram Check",
+  "description": "checks if is an anagram",
+  "tags": [],
+  "sha256": "7d62b9c0683564e305067b8f56418a7e7ef0fe9c7ee7d3214c29cd6a0b83b715",
+  "sizeBytes": 5302
+}

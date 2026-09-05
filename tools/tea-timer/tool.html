@@ -1,0 +1,116 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+<meta charset="utf-8">
+<title>Tea Timer</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.5 system-ui, -apple-system, sans-serif;
+    margin: 0; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1.5rem; padding: 2rem; box-sizing: border-box;
+  }
+  h1 { margin: 0; font-size: 1.4rem; font-weight: 600; }
+  .teas { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; }
+  .teas button {
+    font: inherit; padding: .45rem 1rem; border-radius: 999px;
+    border: 1px solid currentColor; background: transparent; color: inherit;
+    cursor: pointer; opacity: .65;
+  }
+  .teas button[aria-pressed="true"] { opacity: 1; font-weight: 600; }
+  .clock { font-size: 4.5rem; font-variant-numeric: tabular-nums; line-height: 1; }
+  .clock.done { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .controls { display: flex; gap: .6rem; }
+  .controls button { font: inherit; padding: .55rem 1.6rem; border-radius: .4rem;
+    border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+  p.hint { margin: 0; opacity: .6; font-size: .9rem; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Tea Timer</h1>
+
+  <div class="teas" id="teas" role="group" aria-label="Choose a tea"></div>
+
+  <div class="clock" id="clock" role="timer" aria-live="polite">03:00</div>
+
+  <div class="controls">
+    <button id="startStop">Start</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <p class="hint" id="hint">Green tea, 3 minutes. Pick another above.</p>
+
+<script>
+  var TEAS = [
+    { name: 'Green',    seconds: 180, note: 'Green tea, 3 minutes.' },
+    { name: 'Black',    seconds: 240, note: 'Black tea, 4 minutes.' },
+    { name: 'Oolong',   seconds: 300, note: 'Oolong, 5 minutes.' },
+    { name: 'Herbal',   seconds: 420, note: 'Herbal, 7 minutes.' },
+    { name: 'White',    seconds: 150, note: 'White tea, 2 and a half minutes.' }
+  ];
+
+  var chosen = 0;
+  var remaining = TEAS[0].seconds;
+  var ticking = null;
+
+  var clock = document.getElementById('clock');
+  var hint = document.getElementById('hint');
+  var startStop = document.getElementById('startStop');
+
+  function render() {
+    var m = Math.floor(remaining / 60);
+    var s = remaining % 60;
+    clock.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    clock.classList.toggle('done', remaining === 0);
+    startStop.textContent = ticking ? 'Pause' : 'Start';
+  }
+
+  function stop() {
+    if (ticking) { clearInterval(ticking); ticking = null; }
+  }
+
+  function tick() {
+    remaining = Math.max(0, remaining - 1);
+    if (remaining === 0) {
+      stop();
+      hint.textContent = 'Ready. Take it off the leaves.';
+    }
+    render();
+  }
+
+  document.getElementById('startStop').addEventListener('click', function () {
+    if (ticking) { stop(); }
+    else if (remaining > 0) { ticking = setInterval(tick, 1000); }
+    render();
+  });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    stop();
+    remaining = TEAS[chosen].seconds;
+    hint.textContent = TEAS[chosen].note;
+    render();
+  });
+
+  var teas = document.getElementById('teas');
+  TEAS.forEach(function (tea, i) {
+    var b = document.createElement('button');
+    b.textContent = tea.name;
+    b.setAttribute('aria-pressed', String(i === 0));
+    b.addEventListener('click', function () {
+      chosen = i;
+      stop();
+      remaining = tea.seconds;
+      hint.textContent = tea.note;
+      Array.prototype.forEach.call(teas.children, function (el, j) {
+        el.setAttribute('aria-pressed', String(i === j));
+      });
+      render();
+    });
+    teas.appendChild(b);
+  });
+
+  render();
+</script>
+
+
+</body></html>

@@ -1,0 +1,9 @@
+{
+  "id": "edecb2f2-55d2-41d4-8c17-3981ee8debbd",
+  "slug": "coin-streak",
+  "title": "Coin Streak",
+  "description": "Finds the longest run of heads in 100 flips.",
+  "tags": [],
+  "sha256": "42b8b5c1c79f245f3ce7993cf7c35854cc4bf3d73a46996ef6b1d578edd9c423",
+  "sizeBytes": 732
+}
