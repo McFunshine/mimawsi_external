@@ -1,0 +1,45 @@
+MIT License
+
+Copyright (c) 2026 mimawsi and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+-------------------------------------------------------------------------------
+WHO OWNS WHAT IN HERE
+
+The licence above covers this repository's own work — `checks/`, `.github/`, and
+the documentation — and it covers the tools under `tools/`.
+
+It covers the tools because mimawsi.com asks for that when a tool is submitted.
+A maker confirms the file is theirs to give and agrees it is published under the
+MIT licence above. They keep the copyright in their own work; what they grant is
+the permission this licence describes, to anyone.
+
+That is deliberate. The point of publishing a tool here is that somebody can read
+it, check it, and take it away and use it. A repository of files nobody may reuse
+would satisfy the letter of "verifiable" and none of the reason for it.
+
+**Every tool in here as of 2026-09-06 was submitted by the operator**, so nothing
+currently in `tools/` belongs to a third party. The terms above exist so that is
+still true in spirit when it stops being true in fact.
+
+If you are the author of a tool in here and something about this is wrong, say
+so and it will be removed. That is a promise this project would rather keep than
+argue about.
