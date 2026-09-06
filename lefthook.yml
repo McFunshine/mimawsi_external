@@ -1,0 +1,15 @@
+# Checks before a commit lands.
+#
+# Fast on purpose. A hook people wait for is a hook people skip with --no-verify,
+# and a skipped hook is worse than none because it leaves everyone believing
+# something is checked. Everything here also runs in CI, where it cannot be
+# skipped; if the two disagree, the hook is wrong.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: secrets
+      run: gitleaks git --pre-commit --redact --staged --config .gitleaks.toml --no-banner
+
+    - name: checks
+      glob: 'tools/**'
+      run: npm test

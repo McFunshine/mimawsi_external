@@ -1,0 +1,28 @@
+# Secret scanning for the public record.
+#
+# This repository is public permanently, and holds files submitted by other
+# people. A secret reaching it is compromised the moment it lands — deleting it
+# later clears the tip and not the history — so this runs on every change and
+# before every commit.
+
+title = "mimawsi_external"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+The scanner's own test fixtures.
+
+checks/scan.test.ts exists to prove the scanner detects credentials, so it has to
+contain credential-shaped strings — an AWS key, a Google key, a GitHub token, a
+Stripe key, a private key header. They are placeholders and always were:
+AKIAIOSFODNN7EXAMPLE is AWS's own documentation example, and the rest follow the
+same pattern.
+
+Scoped to this one file rather than allowlisted by value, so a real credential
+appearing anywhere else in this repository is still caught, and a real one added
+to this file would still have to survive review of a diff that is obviously about
+fixtures.
+"""
+paths = ['''checks/scan\.test\.ts''']
