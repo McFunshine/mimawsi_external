@@ -1,0 +1,95 @@
+# Recording a publish, when the approval endpoint says one happened.
+#
+# The bytes are deliberately not in the dispatch payload. This fetches them from
+# www.mimawsi.com — the same check the README asks any reader to perform — so the
+# record cannot come to claim a hash the site does not serve. If the fetch and the
+# hash disagree with what was published, this fails and records nothing, which is
+# the correct outcome for a repository whose only job is being right.
+name: Record a published tool
+
+on:
+  repository_dispatch:
+    types: [tool-published]
+  workflow_dispatch:
+    inputs:
+      id:
+        description: Submission id, as served at /tools/<id>.html
+        required: true
+      slug:
+        description: Folder name under tools/
+        required: true
+      title:
+        required: true
+      description:
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two publishes in quick succession would otherwise race on the same branch and
+  # one would be lost to a non-fast-forward push.
+  group: record
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Gather the publish details
+        id: what
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          INPUTS: ${{ toJSON(github.event.inputs) }}
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "$PAYLOAD" > /tmp/what.json
+          else
+            echo "$INPUTS" > /tmp/what.json
+          fi
+          node -e '
+            const w = require("/tmp/what.json");
+            const need = ["id", "slug", "title"];
+            for (const k of need) {
+              if (!w[k]) { console.error("missing " + k); process.exit(1); }
+            }
+            if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(w.id)) {
+              console.error("id is not a safe key: " + w.id); process.exit(1);
+            }
+            // The slug becomes a directory name and arrives from a dispatch, so it
+            // is constrained here rather than trusted. A slug of "../.." would
+            // otherwise write wherever the checkout allows.
+            if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(w.slug)) {
+              console.error("slug is not a safe directory name: " + w.slug); process.exit(1);
+            }
+          '
+
+      - name: Fetch the published bytes and write the folder
+        run: node .github/scripts/record.mjs /tmp/what.json
+
+      - name: The checks must pass on what was just written
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+
+      - name: Commit, if anything changed
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Already recorded; nothing to commit."
+            exit 0
+          fi
+          title=$(node -e 'console.log(require("/tmp/what.json").title)')
+          git config user.name  "mimawsi"
+          git config user.email "no-reply@mimawsi.com"
+          git add -A
+          git commit -m "Record ${title} as published
+
+          Written by the approval endpoint, from the bytes the site is serving."
+          git push
