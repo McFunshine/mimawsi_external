@@ -1,0 +1,448 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which Invoices Add Up</title>
+<style>
+  :root { color-scheme: light dark; --line: color-mix(in srgb, currentColor 22%, transparent);
+          --dim: color-mix(in srgb, currentColor 60%, transparent);
+          --pad: color-mix(in srgb, currentColor 6%, transparent); }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+         margin: 0 auto; max-width: 60rem; padding: 1.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  p.lede { margin: 0 0 1.6rem; color: var(--dim); max-width: 44rem; }
+  fieldset { border: 1px solid var(--line); border-radius: .5rem; padding: 1rem; margin: 0 0 1rem; }
+  legend { padding: 0 .4rem; font-weight: 600; font-size: .9rem; }
+  label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
+  textarea, input { font: inherit; color: inherit; background: transparent;
+                    border: 1px solid var(--line); border-radius: .35rem; padding: .5rem .6rem; width: 100%; }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem;
+             min-height: 11rem; resize: vertical; }
+  .row { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .row > div { flex: 1 1 9rem; }
+  button { font: inherit; padding: .55rem 1.4rem; border-radius: .4rem; border: 1px solid currentColor;
+           background: transparent; color: inherit; cursor: pointer; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.link { border: 0; padding: 0; font-weight: 400; font-size: .85rem;
+                text-decoration: underline; color: var(--dim); }
+  .actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
+  .note { font-size: .85rem; color: var(--dim); margin: .5rem 0 0; }
+  .warn { color: #b4540a; }
+  @media (prefers-color-scheme: dark) { .warn { color: #f0a868; } }
+  .match { border: 1px solid var(--line); border-radius: .5rem; padding: .7rem .9rem; margin-bottom: .6rem; }
+  .match h3 { margin: 0 0 .45rem; font-size: .82rem; font-weight: 600; color: var(--dim);
+              text-transform: uppercase; letter-spacing: .04em; }
+  .items { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .chip { border: 1px solid var(--line); border-radius: .3rem; padding: .2rem .5rem;
+          font-size: .88rem; background: var(--pad); }
+  .chip b { font-weight: 600; }
+  .chip span { color: var(--dim); font-variant-numeric: tabular-nums; margin-left: .45rem; }
+  .diff { font-size: .82rem; color: var(--dim); margin-top: .45rem; font-variant-numeric: tabular-nums; }
+  #status { margin: 0 0 1rem; font-size: .9rem; }
+  .cols { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .cols > * { flex: 1 1 20rem; }
+</style>
+</head>
+<body>
+
+<h1>Which Invoices Add Up</h1>
+<p class="lede">Paste a list of amounts with their references, give it a payment to reconcile,
+and it finds the combinations that make that figure. One line per item; the amount goes at the
+end of the line, the reference is whatever comes before it.</p>
+
+<div class="cols">
+  <fieldset>
+    <legend>The items</legend>
+    <textarea id="items" spellcheck="false" aria-label="Items, one per line" placeholder="INV-1001	240.50
+INV-1002	1,318.00
+INV-1003	89.99
+CN-0007	(45.00)"></textarea>
+    <p class="note" id="parsed">No items yet.</p>
+    <p class="note"><button class="link" id="sample" type="button">Load an example</button></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>What to look for</legend>
+    <div style="margin-bottom:1rem">
+      <label for="target">Amount received</label>
+      <input id="target" inputmode="decimal" placeholder="1558.50">
+    </div>
+    <div class="row">
+      <div>
+        <label for="tol">Tolerance (±)</label>
+        <input id="tol" inputmode="decimal" value="0.00">
+      </div>
+      <div>
+        <label for="maxk">Most items in a match</label>
+        <input id="maxk" inputmode="numeric" value="4">
+      </div>
+    </div>
+    <p class="note">Tolerance covers rounding and small FX drift. Raising the item limit
+    above four widens the search a great deal and makes false matches more likely — a
+    seven-invoice coincidence usually is one.</p>
+  </fieldset>
+</div>
+
+<div class="actions">
+  <button id="go" type="button">Find matches</button>
+  <button class="link" id="clear" type="button">Clear results</button>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<div id="results"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- money, as exact integers -------------------------------------
+     Every amount is scaled to a whole number of the smallest unit seen in the
+     input, so nothing is ever compared as a float. 0.1 + 0.2 has no business
+     anywhere near a reconciliation. The scale is taken from the data rather
+     than assumed to be pence, because rates and part-allocations sometimes
+     carry four decimals and rounding them here would invent a mismatch. */
+
+  // Returns { sign, whole, frac } or null. Accepts 1,234.56 / 1.234,56 / (45.00)
+  // / 45.00- / 45.00 CR / £45 / -45.
+  function parseAmount(raw) {
+    var s = String(raw).trim();
+    if (!s) return null;
+    var neg = false;
+    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    s = s.replace(/\s/g, "");
+    if (/(CR)$/i.test(s)) { neg = true; s = s.replace(/CR$/i, ""); }
+    else if (/(DR)$/i.test(s)) { s = s.replace(/DR$/i, ""); }
+    s = s.replace(/^[$£€¥]/, "").replace(/[$£€¥]$/, "");
+    if (/-$/.test(s)) { neg = true; s = s.slice(0, -1); }
+    if (/^[-+]/.test(s)) { if (s[0] === "-") neg = !neg; s = s.slice(1); }
+    if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) return null;
+
+    // Which of . and , is the decimal point? Whichever comes last. If only one
+    // kind appears, three trailing digits mean it grouped thousands.
+    var lastDot = s.lastIndexOf("."), lastCom = s.lastIndexOf(",");
+    var decAt = -1;
+    if (lastDot >= 0 && lastCom >= 0) decAt = Math.max(lastDot, lastCom);
+    else if (lastDot >= 0 || lastCom >= 0) {
+      var only = Math.max(lastDot, lastCom);
+      var after = s.length - only - 1;
+      var count = (s.match(lastDot >= 0 ? /\./g : /,/g) || []).length;
+      if (!(after === 3 && count >= 1)) decAt = only;
+    }
+    var whole, frac;
+    if (decAt >= 0) { whole = s.slice(0, decAt); frac = s.slice(decAt + 1); }
+    else { whole = s; frac = ""; }
+    whole = whole.replace(/[.,]/g, "");
+    if (/[.,]/.test(frac)) return null;
+    if (!whole && !frac) return null;
+    if (frac.length > 6) return null;
+    return { neg: neg, whole: whole || "0", frac: frac };
+  }
+
+  // Exact: pad the fraction out to the common scale and read it as one integer.
+  function toUnits(p, dp) {
+    var digits = p.whole + (p.frac + "0000000").slice(0, dp);
+    var n = Number(digits.replace(/^0+(?=\d)/, ""));
+    return p.neg ? -n : n;
+  }
+
+  function fmt(units, dp) {
+    var neg = units < 0, s = String(Math.abs(units)).padStart(dp + 1, "0");
+    var whole = dp ? s.slice(0, -dp) : s, frac = dp ? s.slice(-dp) : "";
+    whole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (neg ? "−" : "") + whole + (dp ? "." + frac : "");
+  }
+
+  /* ---------- reading the pasted block ------------------------------------
+     The amount is found by looking at the end of the line rather than by
+     splitting on a delimiter, because the delimiter is often a comma and so is
+     the thousands separator. Everything to its left is the reference. */
+
+  var AMOUNT_AT_END = /([-+(]?\s*[$£€¥]?\s*[\d][\d.,]*\s*\)?\s*(?:CR|DR)?-?)\s*$/i;
+
+  function readItems(text) {
+    var lines = text.split(/\r?\n/), items = [], bad = [], dp = 0, i, n = 0;
+    for (i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      n++;
+      var m = line.match(AMOUNT_AT_END);
+      var p = m ? parseAmount(m[1]) : null;
+      if (!p) { bad.push({ no: i + 1, text: line }); continue; }
+      var ref = line.slice(0, line.length - m[0].length).replace(/[\s,;|\t]+$/, "").trim();
+      if (!ref) ref = "line " + (i + 1);
+      if (p.frac.length > dp) dp = p.frac.length;
+      items.push({ ref: ref, p: p, line: i + 1 });
+    }
+    for (i = 0; i < items.length; i++) items[i].units = toUnits(items[i].p, dp);
+    return { items: items, bad: bad, dp: dp, lines: n };
+  }
+
+  /* ---------- the search ---------------------------------------------------
+     Subset-sum is NP-complete, so there is no clever ordering that makes the
+     general problem cheap. What there is: the cases that actually matter in
+     reconciliation are small, and they can be made provably fast.
+
+     Three things do the work.
+
+     1. The last item is never searched, it is looked up. Once k-1 items are
+        chosen the remainder is a single number, and the amounts are sorted, so
+        a binary search finds every item that closes the gap.
+
+     2. The last pair is a sliding window. Sorted descending, as the first of
+        the two gets smaller its partner must get larger, so the band of
+        amounts that can close the gap only ever moves one way along the array.
+        Both ends of it cross once, which makes the whole level a single pass
+        instead of a search for every item. Pairs cost O(n) after the sort
+        rather than O(n log n), and triples O(n) per starting item rather than
+        O(n log n).
+
+     3. Exact bounds on what the remaining picks can still reach. Sorted
+        descending, the largest sum obtainable from m more items starting at i
+        is simply the next m amounts, prefix[i+m] - prefix[i]; the smallest is
+        the m at the very end. Both are one subtraction, and both are tight
+        rather than approximate, which matters because a loose bound prunes
+        almost nothing. Because the array is descending, once the gap exceeds
+        what the rest can reach, it exceeds it for every later item too, so the
+        loop stops rather than continues.
+
+     Both bounds are computed from the same prefix array and stay correct when
+     credit notes make some amounts negative, which is the case that quietly
+     breaks the usual "sum of what's left" pruning.
+
+     None of this changes the fact that the problem is exponential in the
+     number of items allowed per match. Four is already a wide search over a
+     long list, and the tool stops on a clock rather than pretending to have
+     finished.
+
+     Sizes are searched shortest-first, so a two-invoice answer arrives before
+     the program has considered any five-invoice coincidence. */
+
+  function search(units, target, tol, maxK, budgetMs, capResults) {
+    var n = units.length;
+    var order = [];
+    for (var i = 0; i < n; i++) order.push(i);
+    order.sort(function (a, b) { return units[b] - units[a]; });      // descending
+    var v = order.map(function (i) { return units[i]; });
+
+    var prefix = new Float64Array(n + 1);
+    for (i = 0; i < n; i++) prefix[i + 1] = prefix[i] + v[i];
+
+    // First index at or after `from` whose value is <= x. Descending array.
+    function firstAtMost(from, x) {
+      var lo = from, hi = n;
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (v[mid] <= x) hi = mid; else lo = mid + 1; }
+      return lo;
+    }
+
+    // Last index whose value is >= x, or -1.
+    function lastAtLeast(x) {
+      var lo = 0, hi = n;
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (v[mid] >= x) lo = mid + 1; else hi = mid; }
+      return lo - 1;
+    }
+
+    var out = [], chosen = [], deadline = Date.now() + budgetMs;
+    var stopped = null, checked = 0;
+
+    function dfs(start, need, gap) {
+      if (out.length >= capResults) { stopped = stopped || "cap"; return true; }
+      if ((++checked & 1023) === 0 && Date.now() > deadline) { stopped = "time"; return true; }
+
+      if (need === 1) {
+        // Everything within tolerance of the gap sits in one contiguous run.
+        var lo = firstAtMost(start, gap + tol);
+        for (var j = lo; j < n && v[j] >= gap - tol; j++) {
+          chosen.push(order[j]);
+          out.push(chosen.slice());
+          chosen.pop();
+          if (out.length >= capResults) { stopped = "cap"; return true; }
+        }
+        return false;
+      }
+
+      if (need === 2) {
+        // The window. p is the first index that is not too large to be the
+        // partner, q the last that is not too small; both only ever slide
+        // left as the first pick shrinks, so between them they walk the array
+        // once for the whole level.
+        var p = firstAtMost(0, gap - v[start] + tol);
+        var q = lastAtLeast(gap - v[start] - tol);
+        for (var a = start; a + 1 < n; a++) {
+          // The biggest pair still available starts here; if even that falls
+          // short, every later pair falls further short.
+          if (v[a] + v[a + 1] < gap - tol) break;
+          var hiV = gap - v[a] + tol, loV = gap - v[a] - tol;
+          while (p > 0 && v[p - 1] <= hiV) p--;
+          while (q >= 0 && v[q] < loV) q--;
+          chosen.push(order[a]);
+          for (var b = Math.max(p, a + 1); b <= q; b++) {
+            chosen.push(order[b]);
+            out.push(chosen.slice());
+            chosen.pop();
+            if (out.length >= capResults) { stopped = "cap"; chosen.pop(); return true; }
+          }
+          chosen.pop();
+          if ((++checked & 1023) === 0 && Date.now() > deadline) { stopped = "time"; return true; }
+        }
+        return false;
+      }
+
+      var last = n - need;                       // must leave need-1 behind
+      var m = need - 1;
+      var minRest = prefix[n] - prefix[n - m];   // smallest sum m items can make
+      for (var i = start; i <= last; i++) {
+        var rest = gap - v[i];
+        var maxRest = prefix[i + 1 + m] - prefix[i + 1];
+        if (rest > maxRest + tol) break;         // and only gets worse from here
+        if (rest < minRest - tol) continue;
+        chosen.push(order[i]);
+        var halt = dfs(i + 1, m, rest);
+        chosen.pop();
+        if (halt) return true;
+      }
+      return false;
+    }
+
+    for (var k = 1; k <= maxK && k <= n; k++) {
+      if (dfs(0, k, target)) break;
+    }
+    return { matches: out, stopped: stopped, considered: checked };
+  }
+
+  /* ---------- wiring ------------------------------------------------------- */
+
+  var state = { items: [], dp: 2 };
+
+  function refreshParsed() {
+    var r = readItems($("items").value);
+    state = r;
+    var el = $("parsed");
+    if (!r.items.length) {
+      el.textContent = r.lines ? "No amounts found on those lines." : "No items yet.";
+      el.className = "note" + (r.lines ? " warn" : "");
+      return;
+    }
+    var total = r.items.reduce(function (a, b) { return a + b.units; }, 0);
+    var msg = r.items.length + (r.items.length === 1 ? " item" : " items") +
+              ", totalling " + fmt(total, r.dp) + ".";
+    if (r.bad.length) msg += " " + r.bad.length + " line" + (r.bad.length === 1 ? "" : "s") +
+      " had no amount at the end and " + (r.bad.length === 1 ? "was" : "were") +
+      " skipped (line " + r.bad.map(function (b) { return b.no; }).slice(0, 6).join(", ") + ").";
+    el.textContent = msg;
+    el.className = "note" + (r.bad.length ? " warn" : "");
+  }
+
+  function run() {
+    refreshParsed();
+    var results = $("results"), status = $("status");
+    results.textContent = "";
+
+    if (!state.items.length) { status.textContent = "Nothing to search."; return; }
+
+    // The target and tolerance must be read at the same scale as the items, so
+    // they may push the scale wider than the pasted list did.
+    var tp = parseAmount($("target").value);
+    if (!tp) { status.textContent = "That amount received could not be read."; return; }
+    var lp = parseAmount($("tol").value || "0");
+    if (!lp) { status.textContent = "That tolerance could not be read."; return; }
+
+    var dp = Math.max(state.dp, tp.frac.length, lp.frac.length);
+    var units = state.items.map(function (it) { return toUnits(it.p, dp); });
+    var target = toUnits(tp, dp), tol = Math.abs(toUnits(lp, dp));
+
+    var maxK = Math.max(1, Math.min(12, parseInt($("maxk").value, 10) || 4));
+
+    status.textContent = "Searching…";
+    $("go").disabled = true;
+
+    setTimeout(function () {
+      var t0 = Date.now();
+      var r = search(units, target, tol, maxK, 2000, 200);
+      var ms = Date.now() - t0;
+      $("go").disabled = false;
+
+      if (!r.matches.length) {
+        status.textContent = r.stopped === "time"
+          ? "No combination found before the search ran out of time (" + ms + " ms). Try a " +
+            "smaller item limit, or narrow the list."
+          : "No combination of up to " + maxK + " items makes " + fmt(target, dp) +
+            (tol ? " within " + fmt(tol, dp) : "") + ".";
+        return;
+      }
+
+      var head = r.matches.length + (r.matches.length === 1 ? " match" : " matches") +
+                 " in " + ms + " ms.";
+      if (r.stopped === "cap") head += " Stopped at the first 200 — there are more.";
+      if (r.stopped === "time") head += " The search was cut short at two seconds, so " +
+        "there may be others.";
+      if (r.matches.length > 1) head += " Fewest items first; a match with many items is more " +
+        "likely to be a coincidence than a reconciliation.";
+      status.textContent = head;
+
+      var frag = document.createDocumentFragment();
+      r.matches.forEach(function (idx, nth) {
+        var div = document.createElement("div");
+        div.className = "match";
+        var sum = 0;
+        idx.forEach(function (i) { sum += units[i]; });
+
+        var h = document.createElement("h3");
+        h.textContent = "Match " + (nth + 1) + " — " + idx.length +
+                        (idx.length === 1 ? " item" : " items");
+        div.appendChild(h);
+
+        var list = document.createElement("div");
+        list.className = "items";
+        idx.slice().sort(function (a, b) { return a - b; }).forEach(function (i) {
+          var chip = document.createElement("span");
+          chip.className = "chip";
+          var b = document.createElement("b");
+          b.textContent = state.items[i].ref;
+          var s = document.createElement("span");
+          // The leading space is for anything reading this aloud; the gap on
+          // screen comes from the stylesheet and a screen reader cannot see it.
+          s.textContent = " " + fmt(units[i], dp);
+          chip.appendChild(b); chip.appendChild(s);
+          list.appendChild(chip);
+        });
+        div.appendChild(list);
+
+        var d = document.createElement("div");
+        d.className = "diff";
+        var delta = sum - target;
+        d.textContent = "Total " + fmt(sum, dp) +
+          (delta === 0 ? " — exact." : " — out by " + fmt(delta, dp) + ".");
+        div.appendChild(d);
+
+        frag.appendChild(div);
+      });
+      results.appendChild(frag);
+    }, 0);
+  }
+
+  $("go").addEventListener("click", run);
+  $("items").addEventListener("input", refreshParsed);
+  $("clear").addEventListener("click", function () {
+    $("results").textContent = ""; $("status").textContent = "";
+  });
+  $("sample").addEventListener("click", function () {
+    $("items").value = [
+      "INV-1001\t240.50", "INV-1002\t1,318.00", "INV-1003\t89.99", "INV-1004\t612.75",
+      "INV-1005\t45.00", "INV-1006\t1,204.26", "INV-1007\t377.10", "INV-1008\t96.40",
+      "INV-1009\t2,050.00", "INV-1010\t158.25", "CN-0007\t(45.00)", "INV-1011\t733.33"
+    ].join("\n");
+    $("target").value = "1558.50";
+    $("tol").value = "0.00";
+    refreshParsed();
+    $("status").textContent = "";
+    $("results").textContent = "";
+  });
+
+  refreshParsed();
+})();
+</script>
+
+</body></html>
