@@ -1,0 +1,9 @@
+{
+  "id": "a3b6884c-eb40-4058-85b7-e0850ef98792",
+  "slug": "xlsx-to-csv",
+  "title": "XLSX to CSV",
+  "description": "this is to turn an xslx to a csv without having to open excel!",
+  "tags": [],
+  "sha256": "5c5a8d1099e9c995bc42b33ece5711f39c4939c829f8c02c0652357df4f8e2b4",
+  "sizeBytes": 21651
+}
