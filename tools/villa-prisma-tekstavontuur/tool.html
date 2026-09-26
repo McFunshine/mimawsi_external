@@ -1,0 +1,611 @@
+<!DOCTYPE html><html lang="nl"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+<meta charset="UTF-8">
+<title>Villa Prisma — Tekstavontuur</title>
+<style>
+  :root{
+    --bg:#14121f;
+    --panel:#1c1930;
+    --line:#2c2745;
+    --text:#e9e6f5;
+    --dim:#8c85ad;
+    --accent:#ff6b6b;
+    --accent2:#4ecdc4;
+    --gold:#fbbf24;
+    --danger:#ff5470;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(255,107,107,0.10), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(78,205,196,0.10), transparent 40%),
+      var(--bg);
+    color:var(--text);
+    font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+    display:flex;
+    justify-content:center;
+    padding:18px;
+  }
+  #app{
+    width:100%;
+    max-width:760px;
+    display:flex;
+    flex-direction:column;
+    height:96vh;
+  }
+  header{
+    padding:16px 20px;
+    border-radius:14px 14px 0 0;
+    background:linear-gradient(120deg,#241f3d,#1c1930);
+    border:1px solid var(--line);
+    border-bottom:none;
+  }
+  header h1{
+    font-family:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    margin:0;
+    font-size:22px;
+    letter-spacing:0.5px;
+    background:linear-gradient(90deg,var(--accent),var(--gold),var(--accent2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  header .sub{
+    color:var(--dim);
+    font-size:12px;
+    margin-top:4px;
+  }
+  #statusbar{
+    display:flex;
+    gap:16px;
+    padding:10px 20px;
+    background:#181530;
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+    font-size:12px;
+    color:var(--dim);
+    flex-wrap:wrap;
+  }
+  #statusbar b{color:var(--text);}
+  .roombar{
+    height:4px;
+    width:100%;
+    border-radius:2px;
+    margin-top:8px;
+    transition:background 0.4s ease;
+  }
+  #screen{
+    flex:1;
+    overflow-y:auto;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-top:none;
+    padding:16px 20px;
+    font-size:13.5px;
+    line-height:1.6;
+  }
+  #screen::-webkit-scrollbar{width:8px;}
+  #screen::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+  .entry{margin-bottom:14px; white-space:pre-wrap;}
+  .cmd{color:var(--gold); opacity:0.85;}
+  .cmd:before{content:"› "; color:var(--dim);}
+  .room-title{
+    font-family:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-weight:700;
+    font-size:15px;
+    margin-bottom:4px;
+    display:block;
+  }
+  .ok{color:var(--accent2);}
+  .warn{color:var(--gold);}
+  .bad{color:var(--danger); font-weight:700;}
+  .sys{color:var(--dim); font-style:italic;}
+  form#inputRow{
+    display:flex;
+    border:1px solid var(--line);
+    border-top:none;
+    border-radius:0 0 14px 14px;
+    overflow:hidden;
+    background:#161329;
+  }
+  #prompt{
+    padding:12px 14px;
+    color:var(--accent);
+    font-weight:700;
+  }
+  #cmdInput{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:var(--text);
+    font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:14px;
+    padding:12px 8px 12px 0;
+  }
+  #sendBtn{
+    background:linear-gradient(120deg,var(--accent),var(--gold));
+    border:none;
+    color:#1c1930;
+    font-weight:700;
+    padding:0 18px;
+    cursor:pointer;
+    font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  #sendBtn:hover{filter:brightness(1.08);}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>◆ VILLA PRISMA ◆</h1>
+    <div class="sub">Een tekstavontuur in een huis vol kleur — typ <b>help</b> voor hulp</div>
+  </header>
+  <div id="statusbar">
+    <span>📍 Kamer: <b id="stRoom">—</b></span>
+    <span>⭐ Punten: <b id="stScore">0</b> / 45</span>
+    <span>🎒 Rugzak: <b id="stBag">0/5</b></span>
+    <div class="roombar" id="roombar"></div>
+  </div>
+  <div id="screen"></div>
+  <form id="inputRow">
+    <span id="prompt">&gt;</span>
+    <input id="cmdInput" autocomplete="off" placeholder="typ een commando... bv. 'n' of 'pak sleutel'">
+    <button id="sendBtn" type="submit">GA</button>
+  </form>
+</div>
+
+<script>
+/* ============== DATA ============== */
+const MAXBAG = 5;
+
+const rooms = {
+  hal: {
+    naam: "De Hal",
+    kleur: "#c7c3e0",
+    beschrijving: "Je staat in een strakke, witte hal. Een spiegel met neonrand geeft je een roze gloed. Vloertegels in een dambordpatroon leiden naar alle kanten van het huis.",
+    exits: {n:"woonkamer", o:"keuken", w:"tuin", z:"kelder"},
+    items: []
+  },
+  woonkamer: {
+    naam: "De Woonkamer",
+    kleur: "#4ecdc4",
+    beschrijving: "Een turquoise bank staat voor een enorme scherm-muur. Kussens in felle kleuren liggen verspreid. Op de salontafel ligt een dik boek.",
+    exits: {z:"hal", n:"slaapkamer", o:"studeerkamer"},
+    items: ["boek"]
+  },
+  slaapkamer: {
+    naam: "De Slaapkamer",
+    kleur: "#a78bfa",
+    beschrijving: "Paars licht stroomt door gordijnen van gedraaid glas. Het bed heeft een matras die van kleur verandert als je erop drukt.",
+    exits: {z:"woonkamer"},
+    items: ["kussen"],
+    verborgen: {plek:"kussen", item:"sleutel", gevonden:false, hint:"Onder het kussen glinstert iets."}
+  },
+  studeerkamer: {
+    naam: "De Studeerkamer",
+    kleur: "#60a5fa",
+    beschrijving: "Blauwe boekenkasten tot aan het plafond. Midden in de kamer staat een gesloten kluisje met een cijferslot, en ernaast een dagboek vol krabbels.",
+    exits: {w:"woonkamer"},
+    items: ["dagboek", "kluisje"],
+    kluisOpen: false
+  },
+  keuken: {
+    naam: "De Keuken",
+    kleur: "#ff6b6b",
+    beschrijving: "Koraalkleurige kastjes glimmen in het licht. Op het aanrecht liggen een appel en een mes. Een deur leidt naar de bijkeuken.",
+    exits: {w:"hal", o:"bijkeuken"},
+    items: ["appel", "mes"]
+  },
+  bijkeuken: {
+    naam: "De Bijkeuken",
+    kleur: "#fbbf24",
+    beschrijving: "Een kleine gele ruimte vol planken. Tussen wat conservenblikken ligt een stevige zaklamp.",
+    exits: {w:"keuken"},
+    items: ["zaklamp"]
+  },
+  tuin: {
+    naam: "De Tuin",
+    kleur: "#6bcf7f",
+    beschrijving: "Een weelderige, groene tuin met een kunstmatige beek. Een schep steekt in de aarde naast een bloembed vol felgekleurde bloemen.",
+    exits: {o:"hal", w:"schuur"},
+    items: ["schep", "bloem"]
+  },
+  schuur: {
+    naam: "De Schuur",
+    kleur: "#fb923c",
+    beschrijving: "Een oranje geverfde schuur vol gereedschap. Aan een haak hangt een lang touw, en in een kistje blinkt een gouden munt.",
+    exits: {o:"tuin"},
+    items: ["touw", "gouden munt"]
+  },
+  kelder: {
+    naam: "De Kelder",
+    kleur: "#ff5470",
+    beschrijving: "Een steile trap verdwijnt in het duister. Het is aardedonker — je kunt geen hand voor ogen zien zonder licht.",
+    exits: {n:"hal"},
+    items: [],
+    schatGevonden: false
+  }
+};
+
+// puntensysteem: acties -> punten (elke actie telt maar 1x)
+const puntenActies = {
+  pakSleutel: 3,
+  leesBoek: 2,
+  eetAppel: 1,
+  pakMes: 1,
+  pakZaklamp: 3,
+  pakSchep: 1,
+  pakBloem: 1,
+  pakTouw: 2,
+  pakMunt: 3,
+  losSom: 5,
+  kelderSchat: 20,
+  ontsnapt: 3
+};
+// totaal: 3+2+1+1+3+1+1+2+3+5+20+3 = 45
+
+const raadsels = [
+  {vraag:"Wat heeft handen, maar kan niet klappen?", antwoorden:["klok","een klok"]},
+  {vraag:"Wat wordt natter naarmate het meer droogt?", antwoorden:["handdoek","een handdoek"]},
+  {vraag:"Ik heb steden, maar geen huizen. Ik heb bergen, maar geen bomen. Ik heb water, maar geen vis. Wat ben ik?", antwoorden:["kaart","een kaart","landkaart"]}
+];
+
+/* ============== STATE ============== */
+let state = {
+  huidigeKamer: "hal",
+  rugzak: [],
+  score: 0,
+  gedaan: {},
+  dood: false,
+  wachtOpAntwoord: null,
+  gewonnen: false
+};
+
+/* ============== DOM ============== */
+const screen = document.getElementById('screen');
+const form = document.getElementById('inputRow');
+const input = document.getElementById('cmdInput');
+const stRoom = document.getElementById('stRoom');
+const stScore = document.getElementById('stScore');
+const stBag = document.getElementById('stBag');
+const roombar = document.getElementById('roombar');
+
+function print(html, cls){
+  const div = document.createElement('div');
+  div.className = 'entry' + (cls ? ' '+cls : '');
+  div.innerHTML = html;
+  screen.appendChild(div);
+  screen.scrollTop = screen.scrollHeight;
+}
+
+function printCmd(text){
+  const div = document.createElement('div');
+  div.className = 'entry cmd';
+  div.textContent = text;
+  screen.appendChild(div);
+  screen.scrollTop = screen.scrollHeight;
+}
+
+function updateStatus(){
+  const r = rooms[state.huidigeKamer];
+  stRoom.textContent = r.naam;
+  stScore.textContent = state.score;
+  stBag.textContent = state.rugzak.length + "/" + MAXBAG;
+  roombar.style.background = r.kleur;
+}
+
+function toonKamer(){
+  const r = rooms[state.huidigeKamer];
+  let uitgangen = Object.keys(r.exits).map(k=>({n:"noord",z:"zuid",o:"oost",w:"west"}[k])).join(", ");
+  let html = `<span class="room-title" style="color:${r.kleur}">${r.naam}</span>${r.beschrijving}`;
+  if(r.items.length){
+    html += `\n\nJe ziet hier: ${r.items.join(", ")}.`;
+  }
+  html += `\n\nUitgangen: ${uitgangen}.`;
+  print(html);
+}
+
+/* ============== HELP ============== */
+function toonHelp(){
+  print(
+`<b>Beschikbare commando's:</b>
+<span class="ok">n / z / o / w</span> — loop naar noord, zuid, oost of west
+<span class="ok">pak [object]</span> — stop iets in je rugzak
+<span class="ok">laat [object] vallen</span> — leg iets neer
+<span class="ok">gebruik [object]</span> — gebruik iets uit je rugzak
+<span class="ok">eet [object]</span> — eet iets op
+<span class="ok">lees [object]</span> — lees iets
+<span class="ok">open [object]</span> — open iets
+<span class="ok">los som op</span> — probeer een puzzel op te lossen
+<span class="ok">rugzak</span> / <span class="ok">inventaris</span> — bekijk wat je bij je hebt
+<span class="ok">kijk</span> — bekijk de kamer opnieuw
+<span class="ok">help</span> — toon dit overzicht
+
+Verzamel punten door dingen te vinden, te lezen, te gebruiken en op te lossen. Maximaal <b>45 punten</b> te behalen. Pas op: niet elke kamer is veilig...`, "sys"
+  );
+}
+
+/* ============== INVENTORY ============== */
+function heeft(item){ return state.rugzak.includes(item); }
+
+function pakItem(naam){
+  const r = rooms[state.huidigeKamer];
+  const idx = r.items.indexOf(naam);
+  if(idx === -1){
+    print(`Er ligt hier geen "${naam}".`, "warn");
+    return;
+  }
+  if(state.rugzak.length >= MAXBAG){
+    print(`Je rugzak is vol (${MAXBAG}/${MAXBAG})! Laat eerst iets vallen met "laat [object] vallen".`, "bad");
+    return;
+  }
+  r.items.splice(idx,1);
+  state.rugzak.push(naam);
+  print(`Je stopt <b>${naam}</b> in je rugzak.`, "ok");
+  scoreVoorPak(naam);
+  updateStatus();
+}
+
+function scoreVoorPak(naam){
+  if(naam === "sleutel") geefPunten("pakSleutel", "Een echt antiek sleuteltje — vast belangrijk!");
+  if(naam === "zaklamp") geefPunten("pakZaklamp", "Handig, licht in het duister kan levens redden.");
+  if(naam === "mes") geefPunten("pakMes", "Een scherp keukenmes.");
+  if(naam === "schep") geefPunten("pakSchep", "Nuttig om te graven.");
+  if(naam === "bloem") geefPunten("pakBloem", "Een geurige, felgekleurde bloem.");
+  if(naam === "touw") geefPunten("pakTouw", "Stevig touw, je weet nooit wanneer je het nodig hebt.");
+  if(naam === "gouden munt") geefPunten("pakMunt", "Een zwaar, glimmend gouden muntstuk!");
+}
+
+function geefPunten(key, tekst){
+  if(state.gedaan[key]) return;
+  state.gedaan[key] = true;
+  state.score += puntenActies[key];
+  print(`${tekst} <span class="ok">(+${puntenActies[key]} punten)</span>`, "ok");
+}
+
+function laatVallen(naam){
+  if(!heeft(naam)){
+    print(`Je hebt geen "${naam}" bij je.`, "warn");
+    return;
+  }
+  state.rugzak.splice(state.rugzak.indexOf(naam),1);
+  rooms[state.huidigeKamer].items.push(naam);
+  print(`Je laat <b>${naam}</b> vallen.`);
+  updateStatus();
+}
+
+/* ============== SPECIALE ACTIES ============== */
+function actieZoek(object){
+  if(state.huidigeKamer === "slaapkamer" && (object === "kussen" || object === "bed")){
+    const v = rooms.slaapkamer.verborgen;
+    if(v.gevonden){
+      print("Je hebt hier al gezocht — er ligt niets meer.", "sys");
+      return;
+    }
+    v.gevonden = true;
+    rooms.slaapkamer.items.push("sleutel");
+    print(`Je tilt het kussen op... en vindt een <b>sleutel</b>! Die ligt nu op de grond.`, "ok");
+    return;
+  }
+  print("Daar valt niets te zoeken.", "sys");
+}
+
+function actieLees(object){
+  if(state.huidigeKamer === "woonkamer" && object === "boek"){
+    if(!heeft("boek") && !rooms.woonkamer.items.includes("boek")){
+      print("Het boek is nergens meer te bekennen.", "warn");
+      return;
+    }
+    print(`Je leest een hoofdstuk over de geheimen van Villa Prisma. Op de laatste pagina staat een som gekrabbeld: <b>7 x 6 = ?</b>. Misschien nuttig bij het kluisje in de studeerkamer.`, "ok");
+    geefPunten("leesBoek","Interessante lectuur!");
+    return;
+  }
+  if(state.huidigeKamer === "studeerkamer" && object === "dagboek"){
+    print(`In het dagboek staat: "De code voor de kluis is het antwoord op de som uit het boek in de woonkamer."`);
+    return;
+  }
+  print(`Er valt niets te lezen aan "${object}".`, "sys");
+}
+
+function actieEet(object){
+  if(object === "appel" && (heeft("appel") || rooms.keuken.items.includes("appel"))){
+    if(rooms.keuken.items.includes("appel")) rooms.keuken.items.splice(rooms.keuken.items.indexOf("appel"),1);
+    if(heeft("appel")) state.rugzak.splice(state.rugzak.indexOf("appel"),1);
+    print("Je eet de knapperige appel op. Lekker fris!", "ok");
+    geefPunten("eetAppel","Een gezonde snack.");
+    updateStatus();
+    return;
+  }
+  print(`Je kunt "${object}" niet eten.`, "sys");
+}
+
+function actieOpen(object){
+  if(state.huidigeKamer === "studeerkamer" && (object === "kluisje" || object === "kluis")){
+    if(rooms.studeerkamer.kluisOpen){
+      print("Het kluisje staat al open.", "sys");
+      return;
+    }
+    print("Het kluisje heeft een cijferslot. Typ \"los som op\" als je het antwoord weet.", "warn");
+    return;
+  }
+  print(`Er valt niets te openen aan "${object}".`, "sys");
+}
+
+function actieLosSom(){
+  if(state.huidigeKamer !== "studeerkamer"){
+    print("Er is hier geen som om op te lossen.", "sys");
+    return;
+  }
+  if(rooms.studeerkamer.kluisOpen){
+    print("Het kluisje is al open.", "sys");
+    return;
+  }
+  state.wachtOpAntwoord = {type:"som"};
+  print("Wat is het antwoord op de som uit het boek? (typ een getal)", "warn");
+}
+
+function actieGebruik(object){
+  if(object === "zaklamp" && state.huidigeKamer === "kelder"){
+    if(!heeft("zaklamp")){
+      print("Je hebt geen zaklamp bij je.", "warn");
+      return;
+    }
+    if(rooms.kelder.schatGevonden){
+      print("De kelder is al helemaal verlicht en doorzocht.", "sys");
+      return;
+    }
+    rooms.kelder.schatGevonden = true;
+    print(`Je knipt de zaklamp aan. De kelder blijkt vol te staan met kratten vol kleurrijke kristallen — een verborgen schat! <span class="ok">(+${puntenActies.kelderSchat} punten)</span>`, "ok");
+    geefPunten("kelderSchat","");
+    print("Met je buit onder de arm loop je snel de trap weer op.", "sys");
+    return;
+  }
+  if(object === "sleutel"){
+    if(!heeft("sleutel")){ print("Je hebt geen sleutel bij je.", "warn"); return; }
+    print("Je draait de sleutel rond in je hand. Misschien past hij ergens.", "sys");
+    return;
+  }
+  if(object === "touw" && state.huidigeKamer === "kelder"){
+    print("Je bindt het touw aan de trapleuning — voor extra houvast in het donker. Geen effect, maar het voelt veiliger.", "sys");
+    return;
+  }
+  print(`Je gebruikt "${object}", maar er gebeurt niets bijzonders.`, "sys");
+}
+
+/* ============== BEWEGEN ============== */
+const richtingNamen = {n:"noord", z:"zuid", o:"oost", w:"west"};
+
+function beweeg(richting){
+  const r = rooms[state.huidigeKamer];
+  const doel = r.exits[richting];
+  if(!doel){
+    print(`Je kunt niet naar het ${richtingNamen[richting]}.`, "warn");
+    return;
+  }
+  // kelder gevaar
+  if(doel === "kelder" && !heeft("zaklamp")){
+    state.huidigeKamer = "kelder";
+    print(`Je daalt de steile trap af... en zonder licht mis je een tree. Je valt hard naar beneden.`, "bad");
+    sterf();
+    return;
+  }
+  state.huidigeKamer = doel;
+  toonKamer();
+  updateStatus();
+}
+
+/* ============== DOOD & HERLEEF ============== */
+function sterf(){
+  state.dood = true;
+  print("💀 Je bent gestorven in het duister van de kelder.", "bad");
+  const raadsel = raadsels[Math.floor(Math.random()*raadsels.length)];
+  state.wachtOpAntwoord = {type:"herleef", raadsel};
+  print(`Maar wacht... een zachte stem fluistert je een <b>herleef-vraag</b> toe. Beantwoord goed en je krijgt een nieuwe kans:\n\n<b>${raadsel.vraag}</b>`, "warn");
+}
+
+function verwerkAntwoord(tekst){
+  const antwoord = tekst.trim().toLowerCase();
+  const wacht = state.wachtOpAntwoord;
+  state.wachtOpAntwoord = null;
+
+  if(wacht.type === "herleef"){
+    if(wacht.raadsel.antwoorden.includes(antwoord)){
+      print("Juist! Licht omringt je en je opent je ogen... bovenaan de trap, springlevend.", "ok");
+      state.dood = false;
+      state.huidigeKamer = "hal";
+      toonKamer();
+      updateStatus();
+    } else {
+      print("Fout antwoord... de duisternis probeert je weer te grijpen. Probeer het opnieuw:", "bad");
+      print(`<b>${wacht.raadsel.vraag}</b>`, "warn");
+      state.wachtOpAntwoord = {type:"herleef", raadsel:wacht.raadsel};
+    }
+    return;
+  }
+
+  if(wacht.type === "som"){
+    if(antwoord === "42"){
+      rooms.studeerkamer.kluisOpen = true;
+      print("Klik! Het kluisje springt open. Binnenin ligt niets meer dan een gevoel van voldoening... en kennis.", "ok");
+      geefPunten("losSom","Je hebt de code gekraakt!");
+      checkEinde();
+    } else {
+      print("Dat is niet het juiste antwoord. Misschien moet je het boek in de woonkamer nog eens lezen.", "warn");
+    }
+    return;
+  }
+}
+
+/* ============== EINDE ============== */
+function checkEinde(){
+  if(state.score >= 45 && !state.gewonnen){
+    state.gewonnen = true;
+    print("🏆 <b>Gefeliciteerd!</b> Je hebt alle 45 punten van Villa Prisma verzameld. Je bent een ware meesterontdekker!", "ok");
+  }
+}
+
+/* ============== COMMANDO VERWERKING ============== */
+function verwerk(ruw){
+  const tekst = ruw.trim();
+  if(!tekst) return;
+  printCmd(tekst);
+
+  if(state.wachtOpAntwoord){
+    verwerkAntwoord(tekst);
+    return;
+  }
+
+  const laag = tekst.toLowerCase();
+  const delen = laag.split(/\s+/);
+  const woord = delen[0];
+  const object = delen.slice(1).join(" ").replace(/^de |^het /,"");
+
+  // richtingen
+  const richtingMap = {n:"n", noord:"n", z:"z", zuid:"z", o:"o", oost:"o", w:"w", west:"w"};
+  if(richtingMap[woord] && delen.length === 1){
+    beweeg(richtingMap[woord]);
+    return;
+  }
+
+  if(woord === "help"){ toonHelp(); return; }
+  if(woord === "kijk"){ toonKamer(); return; }
+  if(woord === "rugzak" || woord === "inventaris"){
+    print(state.rugzak.length ? `Je rugzak bevat: ${state.rugzak.join(", ")}.` : "Je rugzak is leeg.", "sys");
+    return;
+  }
+
+  if(woord === "pak"){ pakItem(object); checkEinde(); return; }
+  if(woord === "laat" && laag.includes("vallen")){
+    const naam = laag.replace("laat ","").replace(" vallen","");
+    laatVallen(naam);
+    return;
+  }
+  if(woord === "zoek"){ actieZoek(object); return; }
+  if(woord === "lees"){ actieLees(object); return; }
+  if(woord === "eet"){ actieEet(object); return; }
+  if(woord === "open"){ actieOpen(object); return; }
+  if(woord === "gebruik"){ actieGebruik(object); return; }
+  if(laag === "los som op" || laag === "los som" || (woord==="los" && laag.includes("som"))){ actieLosSom(); return; }
+
+  print(`Ik begrijp "${tekst}" niet. Typ <b>help</b> voor een lijst met commando's.`, "warn");
+}
+
+/* ============== INIT ============== */
+form.addEventListener('submit', e=>{
+  e.preventDefault();
+  const val = input.value;
+  input.value = '';
+  verwerk(val);
+});
+
+print(`<b>Welkom in Villa Prisma</b> — een huis waar elke kamer zijn eigen kleur en karakter heeft. Verzamel zoveel mogelijk van de 45 punten die verstopt zijn achter dingen die je <i>pakt</i>, <i>leest</i>, <i>eet</i> of <i>oplost</i>. Wees voorzichtig: niet elke kamer is veilig zonder licht...`, "sys");
+toonHelp();
+toonKamer();
+updateStatus();
+input.focus();
+</script>
+
+
+</body></html>
