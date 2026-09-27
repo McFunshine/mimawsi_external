@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>A Crossword</title>
+<title>Manic Street Preachers Crossword</title>
 <style>
 :root{
   --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
@@ -58,7 +58,7 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
 th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 .scroll{overflow-x:auto}
 footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
-@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}@media (hover:none){input,textarea,select{font-size:16px}}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}
 
 .xw{display:grid;gap:2px;justify-content:center;margin:6px auto 14px}
 /* --cell is set from the viewport in JS, so a wide grid still fits a phone. */
@@ -70,8 +70,6 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:v
   border:1px solid #cfcabb;border-radius:3px;padding:0;caret-color:var(--hot);
 }
 .xw .cell input:focus{outline:2px solid var(--hot);z-index:2}
-/* Under 16px a tap zooms the page on iOS, and a zoomed crossword is lost. */
-@media (hover:none){.xw .cell input{font-size:max(16px,calc(var(--cell) * .52))}}
 .xw .cell input.right{background:#cdeedd}
 .xw .cell input.wrong{background:#f6cdd4}
 .xw .num{position:absolute;top:1px;left:2px;font-size:9px;color:#6b6553;
@@ -85,8 +83,8 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:v
 </head>
 <body>
 <div id="app">
-<header><h1><span class="mark">◆</span> A Crossword</h1>
-<div class="sub">Click a clue to jump to its square</div></header>
+<header><h1><span class="mark">◆</span> Manic Street Preachers Crossword</h1>
+<div class="sub">Songs, Albumns, People, Things</div></header>
 
 <div class="panel">
   <div class="scroll"><div id="grid" class="xw"></div></div>
@@ -105,7 +103,7 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:v
 <footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
 </div>
 <script>
-const DATA = {"title":"A Crossword","w":15,"h":15,"entries":[{"word":"VORTICISTS","clue":"A B-side, and an art movement","x":5,"y":10,"dir":"A","num":7},{"word":"AUSTRALIA","clue":"1996 single, a place to run to","x":7,"y":6,"dir":"D","num":5},{"word":"BLACKWOOD","clue":"Where the whole thing started","x":6,"y":12,"dir":"A","num":8},{"word":"ORWELLIAN","clue":"An author hides in this 2021 title","x":0,"y":6,"dir":"A","num":4},{"word":"LIPSTICK","clue":"Blank Traces, the B-sides gateway","x":4,"y":8,"dir":"A","num":6},{"word":"SAVILLE","clue":"Painted two of their sleeves","x":6,"y":14,"dir":"A","num":9},{"word":"TRUMPET","clue":"Sean Moore doubles on this","x":1,"y":5,"dir":"D","num":3},{"word":"TSUNAMI","clue":"1999 single, reached eleven","x":6,"y":0,"dir":"D","num":1},{"word":"FASTER","clue":"Its narrator is an architect, they call him a butcher","x":5,"y":4,"dir":"A","num":2}]};
+const DATA = {"title":"Manic Street Preachers Crossword","w":15,"h":15,"entries":[{"word":"VORTICISTS","clue":"A B-side, and an art movement, inspired by cubism","x":5,"y":10,"dir":"A","num":7},{"word":"AUSTRALIA","clue":"1996 single, an upside down place","x":7,"y":6,"dir":"D","num":5},{"word":"BLACKWOOD","clue":"The town where the whole thing started","x":6,"y":12,"dir":"A","num":8},{"word":"ORWELLIAN","clue":"An author hides in this 2021 title, 37 years late","x":0,"y":6,"dir":"A","num":4},{"word":"LIPSTICK","clue":"_______ Traces, the B-sides Secrets","x":4,"y":8,"dir":"A","num":6},{"word":"SAVILLE","clue":"Painted two of their sleeves","x":6,"y":14,"dir":"A","num":9},{"word":"TRUMPET","clue":"Sean Moore doubles on this instrument","x":1,"y":5,"dir":"D","num":3},{"word":"TSUNAMI","clue":"1999 new wave single, reached eleven","x":6,"y":0,"dir":"D","num":1},{"word":"FASTER","clue":"from 1994 about 1984, featuring the voice of John Hurt","x":5,"y":4,"dir":"A","num":2}]};
 function esc(s){ return String(s).replace(/[&<>"']/g, c => (
   {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function store(key){ return {
@@ -135,27 +133,35 @@ for (let y = 0; y < DATA.h; y++){
 }
 
 const answers = new Map();
+// Which entries own each square, and the box in it. A crossing square has both
+// an across and a down owner, which is how the cursor knows to keep going down.
+const owners = new Map();
+const inputs = new Map();
 DATA.entries.forEach(e => {
   for (let i = 0; i < e.word.length; i++){
     const x = e.dir === 'A' ? e.x + i : e.x;
     const y = e.dir === 'D' ? e.y + i : e.y;
     answers.set(x + ',' + y, e.word[i]);
+    const owner = owners.get(x + ',' + y) || {};
+    owner[e.dir] = e;
+    owners.set(x + ',' + y, owner);
     const div = cellMap.get(x + ',' + y);
     div.classList.add('on');
     if (!div.querySelector('input')){
       const inp = document.createElement('input');
       inp.maxLength = 1;
-    // A phone would otherwise autocorrect and spell-check single letters,
-    // and float a suggestion bar over the grid.
-    inp.setAttribute('autocapitalize', 'characters');
-    inp.setAttribute('autocorrect', 'off');
-    inp.setAttribute('autocomplete', 'off');
-    inp.spellcheck = false;
       inp.dataset.pos = x + ',' + y;
       inp.setAttribute('aria-label', 'Row ' + (y + 1) + ', column ' + (x + 1));
       inp.value = state[x + ',' + y] || '';
+      // A phone would otherwise autocorrect and spell-check single letters,
+      // and float a suggestion bar over the grid.
+      inp.setAttribute('autocapitalize', 'characters');
+      inp.setAttribute('autocorrect', 'off');
+      inp.setAttribute('autocomplete', 'off');
+      inp.spellcheck = false;
       div.appendChild(inp);
     }
+    inputs.set(x + ',' + y, div.querySelector('input'));
     if (i === 0 && !div.querySelector('.num')){
       const n = document.createElement('span');
       n.className = 'num';
@@ -163,6 +169,43 @@ DATA.entries.forEach(e => {
       div.appendChild(n);
     }
   }
+});
+
+// The cursor travels along one entry. Stepping through the inputs in DOM order
+// instead was reading order, so a down word turned right at every crossing.
+let dir = 'A';
+
+const ownerAt = pos => owners.get(pos) || {};
+const posIn = (e, i) =>
+  (e.dir === 'A' ? e.x + i : e.x) + ',' + (e.dir === 'D' ? e.y + i : e.y);
+
+function indexIn(e, pos){
+  for (let i = 0; i < e.word.length; i++) if (posIn(e, i) === pos) return i;
+  return -1;
+}
+
+// The neighbour along the current direction, or null at either end of the word.
+function step(pos, delta){
+  const e = ownerAt(pos)[dir];
+  if (!e) return null;
+  const i = indexIn(e, pos) + delta;
+  if (i < 0 || i >= e.word.length) return null;
+  return inputs.get(posIn(e, i)) || null;
+}
+
+// A square with no word running the current way turns the cursor to the one it has.
+grid.addEventListener('focusin', ev => {
+  if (ev.target.tagName !== 'INPUT') return;
+  const o = ownerAt(ev.target.dataset.pos);
+  if (!o[dir]) dir = o.A ? 'A' : 'D';
+});
+
+// Clicking the square you are already on turns the corner, as a crossword does.
+grid.addEventListener('mousedown', ev => {
+  const inp = ev.target;
+  if (inp.tagName !== 'INPUT' || inp !== document.activeElement) return;
+  const o = ownerAt(inp.dataset.pos);
+  if (o.A && o.D) dir = dir === 'A' ? 'D' : 'A';
 });
 
 grid.addEventListener('input', ev => {
@@ -173,17 +216,30 @@ grid.addEventListener('input', ev => {
   state[inp.dataset.pos] = inp.value;
   saved.set(state);
   if (inp.value){
-    const all = $$('#grid input');
-    const i = all.indexOf(inp);
-    if (i > -1 && all[i + 1]) all[i + 1].focus();
+    const next = step(inp.dataset.pos, 1);
+    if (next) next.focus();
   }
 });
 
+const ARROWS = {
+  ArrowRight: ['A', 1], ArrowLeft: ['A', -1],
+  ArrowDown: ['D', 1], ArrowUp: ['D', -1]
+};
+
 grid.addEventListener('keydown', ev => {
-  if (ev.key !== 'Backspace' || ev.target.value) return;
-  const all = $$('#grid input');
-  const i = all.indexOf(ev.target);
-  if (i > 0) all[i - 1].focus();
+  const inp = ev.target;
+  if (inp.tagName !== 'INPUT') return;
+  const arrow = ARROWS[ev.key];
+  if (arrow){
+    if (!ownerAt(inp.dataset.pos)[arrow[0]]) return;
+    dir = arrow[0];
+    const next = step(inp.dataset.pos, arrow[1]);
+    if (next){ ev.preventDefault(); next.focus(); }
+    return;
+  }
+  if (ev.key !== 'Backspace' || inp.value) return;
+  const prev = step(inp.dataset.pos, -1);
+  if (prev) prev.focus();
 });
 
 [['across', 'A'], ['down', 'D']].forEach(pair => {
@@ -193,7 +249,8 @@ grid.addEventListener('keydown', ev => {
     li.value = e.num;
     li.textContent = e.clue + ' (' + e.word.length + ')';
     li.addEventListener('click', () => {
-      const t = document.querySelector('#grid input[data-pos="' + e.x + ',' + e.y + '"]');
+      dir = e.dir;
+      const t = inputs.get(e.x + ',' + e.y);
       if (t) t.focus();
     });
     ol.appendChild(li);

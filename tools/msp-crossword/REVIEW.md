@@ -1,6 +1,6 @@
-# MSP Crossword — review
+# Manic Street Preachers Crossword — review
 
-**Published:** 2026-09-27 · **Approved by:** an approver · **Record written:** automatically, on publish
+**Published:** 2026-09-27 · **Approved by:** Paul Spencer · **Record written:** automatically, on publish
 
 ## What was changed
 
@@ -32,4 +32,4 @@ shasum -a 256 tools/msp-crossword/tool.html
 curl -s https://www.mimawsi.com/tools/418c6ced-5888-41e9-a18c-ca59505bfd26.html | shasum -a 256
 ```
 
-Both must print `da8ee05caa2a4d732dfe07db616d7e6ea63339d37db94b27f7b2b21ed93d1a06`.
+Both must print `56fd29c0d65214ce833d1234d43fcc5f11a0d47f00e1c0ab059fbd9a59412ba6`.
