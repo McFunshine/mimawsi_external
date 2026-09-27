@@ -1,0 +1,315 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>A Cipher</title>
+<style>
+:root{
+  --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
+  --hot:#e4384f; --cool:#49c5b1; --gold:#f2b134; --ok:#5fd68a; --bad:#ff6b7f;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 12% 8%,rgba(228,56,79,.10),transparent 45%),
+                   radial-gradient(circle at 88% 92%,rgba(73,197,177,.08),transparent 45%);
+}
+#app{max-width:1100px;margin:0 auto;padding:20px 18px 64px}
+header{border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+h1{
+  font-family:var(--mono);font-size:1.45rem;margin:0;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;
+}
+h1 .mark{color:var(--hot)}
+.sub{color:var(--dim);font-size:.9rem;margin-top:4px}
+h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;
+   color:var(--dim);margin:22px 0 8px;font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 220px;min-width:0}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:4px;font-family:var(--mono);
+      letter-spacing:.06em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:#131219;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:.9rem;
+}
+textarea{min-height:150px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--cool);outline-offset:1px;border-color:transparent}
+button{
+  background:var(--hot);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;
+}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.cool{background:var(--cool);color:#06211d}
+button.small{padding:5px 10px;font-size:.72rem}
+.note{color:var(--dim);font-size:.82rem}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)}
+.hidden{display:none!important}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.scroll{overflow-x:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}@media (hover:none){input,textarea,select{font-size:16px}}
+
+.board{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.tile{
+  background:#262431;border:1px solid var(--line);border-radius:8px;padding:10px 14px;
+  font-family:var(--mono);font-size:.86rem;cursor:pointer;color:var(--ink);text-align:left;
+}
+.tile:hover{border-color:var(--cool)}
+.tile.picked{border-color:var(--gold);color:var(--gold)}
+.tile.right{border-color:var(--ok);color:var(--ok)}
+.tile.wrong{border-color:var(--bad);color:var(--bad)}
+.tile.gone{opacity:.28;pointer-events:none}
+.bigq{font-size:1.1rem;margin:2px 0 14px;line-height:1.4}
+.meter{height:6px;background:#262431;border-radius:3px;overflow:hidden;margin:10px 0}
+.meter > div{height:100%;background:var(--cool);width:0;transition:width .3s}
+.scoreline{font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+
+.crypt{font-family:var(--mono);font-size:1.15rem;line-height:2.4;letter-spacing:.08em;word-spacing:.6em}
+.crypt .ch{display:inline-block;text-align:center;min-width:1.1em;position:relative}
+.crypt .ch .sol{display:block;font-size:.95rem;color:var(--gold);min-height:1.1em}
+.crypt .ch.space{min-width:.9em}
+.crypt .ch .cy{color:var(--dim);font-size:.78rem}
+.keyrow{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.keyrow label{font-family:var(--mono);font-size:.72rem;color:var(--dim);margin:0}
+.keyrow div{display:flex;flex-direction:column;align-items:center}
+.keyrow input{width:34px;text-align:center;padding:5px 0;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1><span class="mark">◆</span> A Cipher</h1>
+<div class="sub">Every letter stands for another one</div></header>
+
+<div class="panel">
+  <p class="note" id="hint"></p>
+  <div class="crypt" id="crypt"></div>
+</div>
+<div class="panel">
+  <h2>Your key</h2>
+  <div class="keyrow" id="keys"></div>
+  <div class="row">
+    <button id="check">Check</button>
+    <button id="freebie" class="ghost">Give me a letter</button>
+    <button id="clear" class="ghost">Clear</button>
+    <span class="note" id="status"></span>
+  </div>
+</div>
+
+<footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
+</div>
+<script>
+const DATA = {"title":"A Cipher","plain":"THIS IS MY TRUTH TELL ME YOURS","cipher":"MGUF UF YA MHNMG MWDD YW ASNHF","map":{"T":"A","R":"B","I":"C","Q":"D","W":"E","K":"F","Z":"G","G":"H","U":"I","O":"J","J":"K","D":"L","Y":"M","X":"N","S":"O","L":"P","C":"Q","H":"R","F":"S","M":"T","N":"U","B":"V","E":"W","P":"X","A":"Y","V":"Z"},"hint":"Four words. An album title."};
+function esc(s){ return String(s).replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function store(key){ return {
+  get(f){ try { const v = localStorage.getItem(key); return v===null?f:JSON.parse(v); } catch(e){ return f; } },
+  set(v){ try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} } }; }
+function $(s,r){ return (r||document).querySelector(s); }
+function $$(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+const AudioKit = (() => {
+  let ctx = null;
+  const NOTES = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+
+  function ac(){
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  /** "A4" | "F#3" -> Hz. Returns 0 for a rest. */
+  function freq(note){
+    if (!note || note === 'r' || note === 'R') return 0;
+    const m = String(note).match(/^([A-Ga-g])([#b]?)(-?\d)$/);
+    if (!m) return 0;
+    const semi = NOTES[m[1].toUpperCase() + m[2]];
+    if (semi === undefined) return 0;
+    return 440 * Math.pow(2, (semi - 9) / 12 + (Number(m[3]) - 4));
+  }
+
+  /** One note. type: square | triangle | sawtooth | sine */
+  function beep(note, dur, opts){
+    const c = ac(); if (!c) return;
+    const o = opts || {};
+    const f = typeof note === 'number' ? note : freq(note);
+    if (!f) return;
+    const t = c.currentTime;
+    const d = dur || 0.18;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(f, t);
+    // A short attack and an exponential tail: without the ramp every note clicks.
+    const peak = (o.gain === undefined ? 0.16 : o.gain);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t); osc.stop(t + d + 0.02);
+  }
+
+  /** Percussion, from filtered noise — no samples exist to load. */
+  function hit(kind){
+    const c = ac(); if (!c) return;
+    const t = c.currentTime;
+    const len = kind === 'snare' ? 0.16 : 0.07;
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * len), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter();
+    f.type = kind === 'snare' ? 'highpass' : 'lowpass';
+    f.frequency.value = kind === 'snare' ? 1200 : 400;
+    const g = c.createGain(); g.gain.value = 0.12;
+    src.connect(f); f.connect(g); g.connect(c.destination);
+    src.start(t);
+  }
+
+  /**
+   * A tune is a compact string: "E4:q G4:q B4:h r:q".
+   * Durations: w h q e s (whole..sixteenth), default q.
+   * Returns a handle so a caller can stop it.
+   */
+  function parse(src){
+    return String(src).trim().split(/\s+/).filter(Boolean).map(tok => {
+      const [n, d] = tok.split(':');
+      const beats = {w:4, h:2, q:1, e:0.5, s:0.25}[d || 'q'] || 1;
+      return { note: n, beats };
+    });
+  }
+
+  function playTune(src, opts){
+    const c = ac(); if (!c) return { stop(){} };
+    const o = opts || {};
+    const bpm = o.bpm || 132;
+    const spb = 60 / bpm;
+    const seq = typeof src === 'string' ? parse(src) : src;
+    let at = 0;
+    const timers = [];
+    seq.forEach(step => {
+      const ms = at * spb * 1000;
+      timers.push(setTimeout(() => {
+        beep(step.note, step.beats * spb * 0.92, { type: o.type || 'square', gain: o.gain });
+        if (o.drums && step.note !== 'r') hit('kick');
+      }, ms));
+      at += step.beats;
+    });
+    if (o.onEnd) timers.push(setTimeout(o.onEnd, at * spb * 1000 + 60));
+    return { stop(){ timers.forEach(clearTimeout); }, duration: at * spb };
+  }
+
+  /** Small UI voices, so feedback is audible without being a tune. */
+  const sfx = {
+    good(){ beep('E5', .09); setTimeout(() => beep('B5', .14), 90); },
+    bad(){ beep('A3', .1, {type:'sawtooth'}); setTimeout(() => beep('D#3', .2, {type:'sawtooth'}), 95); },
+    click(){ beep('C6', .04, {gain:.07}); },
+    win(){ ['C5','E5','G5','C6'].forEach((n,i) => setTimeout(() => beep(n, .2), i * 110)); }
+  };
+
+  return { beep, hit, playTune, parse, freq, sfx, ready: () => !!ac() };
+})();
+
+
+const saved = store('cipher:' + DATA.title);
+const key = saved.get({});
+const used = Array.from(new Set(DATA.cipher.replace(/[^A-Z]/g, '').split(''))).sort();
+$('#hint').textContent = DATA.hint || '';
+
+function draw(){
+  const box = $('#crypt');
+  box.replaceChildren();
+  DATA.cipher.split('').forEach(ch => {
+    const s = document.createElement('span');
+    if (!/[A-Z]/.test(ch)){
+      s.className = 'ch space';
+      s.textContent = ch === ' ' ? '' : ch;
+    } else {
+      s.className = 'ch';
+      const sol = document.createElement('span');
+      sol.className = 'sol';
+      sol.textContent = key[ch] || '';
+      const cy = document.createElement('span');
+      cy.className = 'cy';
+      cy.textContent = ch;
+      s.appendChild(sol); s.appendChild(cy);
+    }
+    box.appendChild(s);
+  });
+}
+
+function drawKeys(){
+  const box = $('#keys');
+  box.replaceChildren();
+  used.forEach(ch => {
+    const wrap = document.createElement('div');
+    const lab = document.createElement('label');
+    lab.textContent = ch; lab.setAttribute('for', 'k' + ch);
+    const inp = document.createElement('input');
+    inp.id = 'k' + ch; inp.maxLength = 1; inp.value = key[ch] || '';
+    inp.setAttribute('aria-label', 'Letter for ' + ch);
+    inp.addEventListener('input', () => {
+      const v = inp.value.toUpperCase().replace(/[^A-Z]/g, '');
+      inp.value = v;
+      if (v) key[ch] = v; else delete key[ch];
+      saved.set(key);
+      draw();
+    });
+    wrap.appendChild(lab); wrap.appendChild(inp);
+    box.appendChild(wrap);
+  });
+}
+
+$('#check').addEventListener('click', () => {
+  const got = DATA.cipher.split('').map(c => (/[A-Z]/.test(c) ? (key[c] || '?') : c)).join('');
+  const s = $('#status');
+  if (got === DATA.plain){
+    s.textContent = 'That is it exactly.'; s.className = 'note ok';
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.win();
+  } else {
+    let right = 0, total = 0;
+    for (let i = 0; i < DATA.plain.length; i++){
+      if (!/[A-Z]/.test(DATA.plain[i])) continue;
+      total++;
+      if (got[i] === DATA.plain[i]) right++;
+    }
+    s.textContent = right + ' of ' + total + ' letters right';
+    s.className = 'note';
+  }
+});
+
+$('#freebie').addEventListener('click', () => {
+  const unsolved = used.filter(c => !key[c] || key[c] !== DATA.map[c]);
+  if (!unsolved.length) return;
+  const ch = unsolved[Math.floor(Math.random() * unsolved.length)];
+  key[ch] = DATA.map[ch];
+  saved.set(key);
+  drawKeys(); draw();
+});
+
+$('#clear').addEventListener('click', () => {
+  used.forEach(c => delete key[c]);
+  saved.set(key); drawKeys(); draw();
+  $('#status').textContent = '';
+});
+
+drawKeys(); draw();
+
+</script>
+
+
+</body></html>

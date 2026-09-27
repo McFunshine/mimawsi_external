@@ -1,0 +1,364 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>The Ladder</title>
+<style>
+:root{
+  --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
+  --hot:#e4384f; --cool:#49c5b1; --gold:#f2b134; --ok:#5fd68a; --bad:#ff6b7f;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 12% 8%,rgba(228,56,79,.10),transparent 45%),
+                   radial-gradient(circle at 88% 92%,rgba(73,197,177,.08),transparent 45%);
+}
+#app{max-width:1100px;margin:0 auto;padding:20px 18px 64px}
+header{border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+h1{
+  font-family:var(--mono);font-size:1.45rem;margin:0;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;
+}
+h1 .mark{color:var(--hot)}
+.sub{color:var(--dim);font-size:.9rem;margin-top:4px}
+h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;
+   color:var(--dim);margin:22px 0 8px;font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 220px;min-width:0}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:4px;font-family:var(--mono);
+      letter-spacing:.06em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:#131219;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:.9rem;
+}
+textarea{min-height:150px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--cool);outline-offset:1px;border-color:transparent}
+button{
+  background:var(--hot);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;
+}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.cool{background:var(--cool);color:#06211d}
+button.small{padding:5px 10px;font-size:.72rem}
+.note{color:var(--dim);font-size:.82rem}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)}
+.hidden{display:none!important}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.scroll{overflow-x:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}@media (hover:none){input,textarea,select{font-size:16px}}
+
+.board{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.tile{
+  background:#262431;border:1px solid var(--line);border-radius:8px;padding:10px 14px;
+  font-family:var(--mono);font-size:.86rem;cursor:pointer;color:var(--ink);text-align:left;
+}
+.tile:hover{border-color:var(--cool)}
+.tile.picked{border-color:var(--gold);color:var(--gold)}
+.tile.right{border-color:var(--ok);color:var(--ok)}
+.tile.wrong{border-color:var(--bad);color:var(--bad)}
+.tile.gone{opacity:.28;pointer-events:none}
+.bigq{font-size:1.1rem;margin:2px 0 14px;line-height:1.4}
+.meter{height:6px;background:#262431;border-radius:3px;overflow:hidden;margin:10px 0}
+.meter > div{height:100%;background:var(--cool);width:0;transition:width .3s}
+.scoreline{font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+
+.ladder{display:flex;flex-direction:column-reverse;gap:3px;font-family:var(--mono);font-size:.78rem}
+.rung{display:flex;justify-content:space-between;padding:5px 10px;border-radius:5px;color:var(--dim)}
+.rung.safe{color:var(--cool)}
+.rung.at{background:var(--gold);color:#221803;font-weight:700}
+.rung.past{color:#4e4a60}
+.lifelines{display:flex;gap:8px;flex-wrap:wrap}
+.lifelines button.spent{opacity:.3;pointer-events:none;text-decoration:line-through}
+.audience{display:flex;gap:6px;align-items:flex-end;height:80px;margin-top:10px}
+.audience div{flex:1;background:var(--cool);border-radius:3px 3px 0 0;position:relative;min-height:2px}
+.audience div span{position:absolute;top:-17px;left:0;right:0;text-align:center;
+  font:700 .7rem var(--mono);color:var(--dim)}
+.layout{display:grid;grid-template-columns:1fr 200px;gap:18px}
+@media (max-width:700px){.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1><span class="mark">◆</span> The Ladder</h1>
+<div class="sub">Walk away at any point, and keep what you have</div></header>
+
+<div class="layout">
+  <div>
+    <div class="panel">
+      <p class="bigq" id="q"></p>
+      <div class="answers" id="answers" style="display:grid;gap:8px"></div>
+      <div class="audience hidden" id="audience"></div>
+      <p class="note" id="why"></p>
+      <div class="row" style="margin-top:10px">
+        <button id="next" class="cool hidden">Next</button>
+        <button id="walk" class="ghost">Walk away</button>
+        <span class="note" id="status"></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Lifelines</h2>
+      <div class="lifelines">
+        <button id="fifty" class="ghost">Take two away</button>
+        <button id="ask" class="ghost">Ask the room</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel"><h2>The ladder</h2><div class="ladder" id="ladder"></div></div>
+</div>
+
+<footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
+</div>
+<script>
+const DATA = {"title":"The Ladder","questions":[{"q":"In which town were Manic Street Preachers formed?","a":"Blackwood","wrong":["Newport","Cardiff","Swansea"],"why":""},{"q":"Who is the band’s lead singer?","a":"James Dean Bradfield","wrong":["Nicky Wire","Sean Moore","Richey Edwards"],"why":""},{"q":"Which 1996 single mentions libraries?","a":"A Design for Life","wrong":["Australia","Kevin Carter","Everything Must Go"],"why":""},{"q":"What instrument does Sean Moore play besides drums?","a":"Trumpet","wrong":["Harmonica","Cello","Flute"],"why":"He is a trained trumpeter."},{"q":"Which album was their first UK number one?","a":"This Is My Truth Tell Me Yours","wrong":["Everything Must Go","The Holy Bible","Know Your Enemy"],"why":""},{"q":"Which painter made the sleeve of The Holy Bible?","a":"Jenny Saville","wrong":["Tracey Emin","Peter Blake","Paula Rego"],"why":""},{"q":"Which 2000 single was deleted on its release day and still went to number one?","a":"The Masses Against the Classes","wrong":["Tsunami","The Everlasting","So Why So Sad"],"why":""},{"q":"Which Havana venue did they play in 2001?","a":"Karl Marx Theatre","wrong":["Gran Teatro","Teatro Nacional","Sala Avenida"],"why":""},{"q":"Which 2009 album set Richey Edwards’ lyrics to new music?","a":"Journal for Plague Lovers","wrong":["Lifeblood","Postcards from a Young Man","Rewind the Film"],"why":""},{"q":"Who recorded that album?","a":"Steve Albini","wrong":["Dave Eringa","Flood","Steven Wilson"],"why":""},{"q":"Who sang with them on Your Love Alone Is Not Enough?","a":"Nina Persson","wrong":["Nina Hoss","Cate Le Bon","Julia Cumming"],"why":""},{"q":"Which album gave them a second number one in 2021?","a":"The Ultra Vivid Lament","wrong":["Resistance Is Futile","Futurology","Critical Thinking"],"why":""},{"q":"Who was the band’s original bassist?","a":"Miles Flicker Woodward","wrong":["Nicky Wire","Sean Moore","Richey Edwards"],"why":""},{"q":"Which B-side appeared with Autumnsong?","a":"Vorticists","wrong":["Mr Carbohydrate","Pedestal","Socialist Serenade"],"why":""},{"q":"Which Saville painting is on Journal for Plague Lovers?","a":"Stare","wrong":["Strategy","Propped","Branded"],"why":""}],"rungs":[{"label":"100","safe":false},{"label":"200","safe":false},{"label":"300","safe":false},{"label":"500","safe":false},{"label":"1000","safe":true},{"label":"2000","safe":false},{"label":"4000","safe":false},{"label":"8000","safe":false},{"label":"16000","safe":false},{"label":"32000","safe":true},{"label":"64000","safe":false},{"label":"125000","safe":false},{"label":"250000","safe":false},{"label":"500000","safe":false},{"label":"1 million","safe":false}]};
+function esc(s){ return String(s).replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function store(key){ return {
+  get(f){ try { const v = localStorage.getItem(key); return v===null?f:JSON.parse(v); } catch(e){ return f; } },
+  set(v){ try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} } }; }
+function $(s,r){ return (r||document).querySelector(s); }
+function $$(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+const AudioKit = (() => {
+  let ctx = null;
+  const NOTES = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+
+  function ac(){
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  /** "A4" | "F#3" -> Hz. Returns 0 for a rest. */
+  function freq(note){
+    if (!note || note === 'r' || note === 'R') return 0;
+    const m = String(note).match(/^([A-Ga-g])([#b]?)(-?\d)$/);
+    if (!m) return 0;
+    const semi = NOTES[m[1].toUpperCase() + m[2]];
+    if (semi === undefined) return 0;
+    return 440 * Math.pow(2, (semi - 9) / 12 + (Number(m[3]) - 4));
+  }
+
+  /** One note. type: square | triangle | sawtooth | sine */
+  function beep(note, dur, opts){
+    const c = ac(); if (!c) return;
+    const o = opts || {};
+    const f = typeof note === 'number' ? note : freq(note);
+    if (!f) return;
+    const t = c.currentTime;
+    const d = dur || 0.18;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(f, t);
+    // A short attack and an exponential tail: without the ramp every note clicks.
+    const peak = (o.gain === undefined ? 0.16 : o.gain);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t); osc.stop(t + d + 0.02);
+  }
+
+  /** Percussion, from filtered noise — no samples exist to load. */
+  function hit(kind){
+    const c = ac(); if (!c) return;
+    const t = c.currentTime;
+    const len = kind === 'snare' ? 0.16 : 0.07;
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * len), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter();
+    f.type = kind === 'snare' ? 'highpass' : 'lowpass';
+    f.frequency.value = kind === 'snare' ? 1200 : 400;
+    const g = c.createGain(); g.gain.value = 0.12;
+    src.connect(f); f.connect(g); g.connect(c.destination);
+    src.start(t);
+  }
+
+  /**
+   * A tune is a compact string: "E4:q G4:q B4:h r:q".
+   * Durations: w h q e s (whole..sixteenth), default q.
+   * Returns a handle so a caller can stop it.
+   */
+  function parse(src){
+    return String(src).trim().split(/\s+/).filter(Boolean).map(tok => {
+      const [n, d] = tok.split(':');
+      const beats = {w:4, h:2, q:1, e:0.5, s:0.25}[d || 'q'] || 1;
+      return { note: n, beats };
+    });
+  }
+
+  function playTune(src, opts){
+    const c = ac(); if (!c) return { stop(){} };
+    const o = opts || {};
+    const bpm = o.bpm || 132;
+    const spb = 60 / bpm;
+    const seq = typeof src === 'string' ? parse(src) : src;
+    let at = 0;
+    const timers = [];
+    seq.forEach(step => {
+      const ms = at * spb * 1000;
+      timers.push(setTimeout(() => {
+        beep(step.note, step.beats * spb * 0.92, { type: o.type || 'square', gain: o.gain });
+        if (o.drums && step.note !== 'r') hit('kick');
+      }, ms));
+      at += step.beats;
+    });
+    if (o.onEnd) timers.push(setTimeout(o.onEnd, at * spb * 1000 + 60));
+    return { stop(){ timers.forEach(clearTimeout); }, duration: at * spb };
+  }
+
+  /** Small UI voices, so feedback is audible without being a tune. */
+  const sfx = {
+    good(){ beep('E5', .09); setTimeout(() => beep('B5', .14), 90); },
+    bad(){ beep('A3', .1, {type:'sawtooth'}); setTimeout(() => beep('D#3', .2, {type:'sawtooth'}), 95); },
+    click(){ beep('C6', .04, {gain:.07}); },
+    win(){ ['C5','E5','G5','C6'].forEach((n,i) => setTimeout(() => beep(n, .2), i * 110)); }
+  };
+
+  return { beep, hit, playTune, parse, freq, sfx, ready: () => !!ac() };
+})();
+
+
+let at = 0, over = false, used = { fifty: false, ask: false };
+const rungs = DATA.rungs;
+
+function q(){ return DATA.questions[at]; }
+
+function drawLadder(){
+  const box = $('#ladder');
+  box.replaceChildren();
+  rungs.forEach((r, i) => {
+    const d = document.createElement('div');
+    d.className = 'rung' + (i === at ? ' at' : (i < at ? ' past' : ''))
+      + (r.safe ? ' safe' : '');
+    d.innerHTML = '<span>' + (i + 1) + '</span><span>' + esc(r.label) + '</span>';
+    box.appendChild(d);
+  });
+}
+
+function shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+function render(){
+  drawLadder();
+  $('#q').textContent = q().q;
+  $('#why').textContent = '';
+  $('#status').textContent = '';
+  $('#next').classList.add('hidden');
+  $('#audience').classList.add('hidden');
+  const box = $('#answers');
+  box.replaceChildren();
+  shuffle([q().a].concat(q().wrong)).forEach(opt => {
+    const b = document.createElement('button');
+    b.className = 'tile'; b.type = 'button'; b.textContent = opt;
+    b.addEventListener('click', () => choose(b, opt));
+    box.appendChild(b);
+  });
+}
+
+function fallback(){
+  let best = null;
+  rungs.forEach((r, i) => { if (r.safe && i < at) best = r; });
+  return best ? best.label : 'nothing';
+}
+
+function choose(btn, opt){
+  if (over || !$('#next').classList.contains('hidden')) return;
+  const right = opt === q().a;
+  $$('#answers .tile').forEach(t => {
+    t.style.pointerEvents = 'none';
+    if (t.textContent === q().a) t.classList.add('right');
+  });
+  if (q().why) $('#why').textContent = q().why;
+  if (right){
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.good();
+    if (at >= rungs.length - 1 || at >= DATA.questions.length - 1){
+      over = true;
+      $('#status').textContent = 'The top of the ladder: ' + rungs[Math.min(at, rungs.length - 1)].label + '.';
+      $('#status').className = 'note ok';
+      if (typeof AudioKit !== 'undefined') AudioKit.sfx.win();
+    } else {
+      $('#status').textContent = 'Right. ' + rungs[at].label + ' is yours.';
+      $('#status').className = 'note ok';
+      $('#next').classList.remove('hidden');
+    }
+  } else {
+    over = true;
+    btn.classList.add('wrong');
+    $('#status').textContent = 'No. You drop to ' + fallback() + '.';
+    $('#status').className = 'note bad';
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.bad();
+  }
+}
+
+$('#next').addEventListener('click', () => { at++; render(); });
+
+$('#walk').addEventListener('click', () => {
+  if (over) return;
+  over = true;
+  const held = at > 0 ? rungs[at - 1].label : 'nothing';
+  $('#status').textContent = 'Walked away with ' + held + '.';
+  $('#status').className = 'note ok';
+  $$('#answers .tile').forEach(t => { t.style.pointerEvents = 'none';
+    if (t.textContent === q().a) t.classList.add('right'); });
+});
+
+$('#fifty').addEventListener('click', () => {
+  if (used.fifty || over) return;
+  used.fifty = true;
+  $('#fifty').classList.add('spent');
+  const wrong = $$('#answers .tile').filter(t => t.textContent !== q().a);
+  shuffle(wrong).slice(0, Math.max(0, wrong.length - 1)).forEach(t => t.classList.add('gone'));
+});
+
+$('#ask').addEventListener('click', () => {
+  if (used.ask || over) return;
+  used.ask = true;
+  $('#ask').classList.add('spent');
+  const opts = $$('#answers .tile').filter(t => !t.classList.contains('gone'));
+  // The room is usually right, and less sure the further up the ladder you are.
+  const confidence = Math.max(0.34, 0.9 - at * 0.06);
+  const shares = opts.map(t => t.textContent === q().a ? confidence : Math.random());
+  const sum = shares.reduce((a, b) => a + b, 0);
+  const box = $('#audience');
+  box.replaceChildren();
+  box.classList.remove('hidden');
+  opts.forEach((t, i) => {
+    const pct = Math.round(shares[i] / sum * 100);
+    const bar = document.createElement('div');
+    bar.style.height = Math.max(3, pct) + '%';
+    bar.innerHTML = '<span>' + pct + '%</span>';
+    box.appendChild(bar);
+  });
+});
+
+render();
+
+</script>
+
+
+</body></html>

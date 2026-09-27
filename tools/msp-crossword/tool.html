@@ -1,0 +1,242 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>A Crossword</title>
+<style>
+:root{
+  --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
+  --hot:#e4384f; --cool:#49c5b1; --gold:#f2b134; --ok:#5fd68a; --bad:#ff6b7f;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 12% 8%,rgba(228,56,79,.10),transparent 45%),
+                   radial-gradient(circle at 88% 92%,rgba(73,197,177,.08),transparent 45%);
+}
+#app{max-width:1100px;margin:0 auto;padding:20px 18px 64px}
+header{border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+h1{
+  font-family:var(--mono);font-size:1.45rem;margin:0;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;
+}
+h1 .mark{color:var(--hot)}
+.sub{color:var(--dim);font-size:.9rem;margin-top:4px}
+h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;
+   color:var(--dim);margin:22px 0 8px;font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 220px;min-width:0}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:4px;font-family:var(--mono);
+      letter-spacing:.06em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:#131219;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:.9rem;
+}
+textarea{min-height:150px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--cool);outline-offset:1px;border-color:transparent}
+button{
+  background:var(--hot);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;
+}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.cool{background:var(--cool);color:#06211d}
+button.small{padding:5px 10px;font-size:.72rem}
+.note{color:var(--dim);font-size:.82rem}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)}
+.hidden{display:none!important}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.scroll{overflow-x:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}@media (hover:none){input,textarea,select{font-size:16px}}
+
+.xw{display:grid;gap:2px;justify-content:center;margin:6px auto 14px}
+/* --cell is set from the viewport in JS, so a wide grid still fits a phone. */
+.xw .cell{width:var(--cell,34px);height:var(--cell,34px);position:relative;background:transparent}
+.xw .cell.on{background:#26243180;border-radius:3px}
+.xw .cell input{
+  position:absolute;inset:0;width:100%;height:100%;text-align:center;text-transform:uppercase;
+  font-family:var(--mono);font-size:calc(var(--cell) * .52);font-weight:700;background:#f2efe6;color:#14131a;
+  border:1px solid #cfcabb;border-radius:3px;padding:0;caret-color:var(--hot);
+}
+.xw .cell input:focus{outline:2px solid var(--hot);z-index:2}
+/* Under 16px a tap zooms the page on iOS, and a zoomed crossword is lost. */
+@media (hover:none){.xw .cell input{font-size:max(16px,calc(var(--cell) * .52))}}
+.xw .cell input.right{background:#cdeedd}
+.xw .cell input.wrong{background:#f6cdd4}
+.xw .num{position:absolute;top:1px;left:2px;font-size:9px;color:#6b6553;
+  font-family:var(--mono);z-index:1;pointer-events:none}
+.clues{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.clues ol{margin:0;padding-left:24px}
+.clues li{margin-bottom:5px;font-size:.88rem;cursor:pointer}
+.clues li:hover{color:var(--gold)}
+@media (max-width:640px){ .clues{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1><span class="mark">◆</span> A Crossword</h1>
+<div class="sub">Click a clue to jump to its square</div></header>
+
+<div class="panel">
+  <div class="scroll"><div id="grid" class="xw"></div></div>
+  <div class="row" style="margin-top:12px">
+    <button id="check">Check</button>
+    <button id="reveal" class="ghost">Reveal a letter</button>
+    <button id="clear" class="ghost">Clear</button>
+    <span id="status" class="note"></span>
+  </div>
+</div>
+<div class="panel clues">
+  <div><h2>Across</h2><ol id="across"></ol></div>
+  <div><h2>Down</h2><ol id="down"></ol></div>
+</div>
+
+<footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
+</div>
+<script>
+const DATA = {"title":"A Crossword","w":15,"h":15,"entries":[{"word":"VORTICISTS","clue":"A B-side, and an art movement","x":5,"y":10,"dir":"A","num":7},{"word":"AUSTRALIA","clue":"1996 single, a place to run to","x":7,"y":6,"dir":"D","num":5},{"word":"BLACKWOOD","clue":"Where the whole thing started","x":6,"y":12,"dir":"A","num":8},{"word":"ORWELLIAN","clue":"An author hides in this 2021 title","x":0,"y":6,"dir":"A","num":4},{"word":"LIPSTICK","clue":"Blank Traces, the B-sides gateway","x":4,"y":8,"dir":"A","num":6},{"word":"SAVILLE","clue":"Painted two of their sleeves","x":6,"y":14,"dir":"A","num":9},{"word":"TRUMPET","clue":"Sean Moore doubles on this","x":1,"y":5,"dir":"D","num":3},{"word":"TSUNAMI","clue":"1999 single, reached eleven","x":6,"y":0,"dir":"D","num":1},{"word":"FASTER","clue":"Its narrator is an architect, they call him a butcher","x":5,"y":4,"dir":"A","num":2}]};
+function esc(s){ return String(s).replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function store(key){ return {
+  get(f){ try { const v = localStorage.getItem(key); return v===null?f:JSON.parse(v); } catch(e){ return f; } },
+  set(v){ try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} } }; }
+function $(s,r){ return (r||document).querySelector(s); }
+function $$(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+
+const saved = store('xw:' + DATA.title);
+const state = saved.get({});
+const grid = document.getElementById('grid');
+// Sized from the viewport so a wide grid still fits a phone unscrolled.
+// 72px of page chrome, as in the word search; DATA.w * 2 covers the 2px gaps.
+grid.style.setProperty('--cell',
+  'min(34px, calc((100vw - 72px - ' + (DATA.w * 2) + 'px) / ' + DATA.w + '))');
+grid.style.gridTemplateColumns = 'repeat(' + DATA.w + ', var(--cell))';
+
+const cellMap = new Map();
+for (let y = 0; y < DATA.h; y++){
+  for (let x = 0; x < DATA.w; x++){
+    const div = document.createElement('div');
+    div.className = 'cell';
+    grid.appendChild(div);
+    cellMap.set(x + ',' + y, div);
+  }
+}
+
+const answers = new Map();
+DATA.entries.forEach(e => {
+  for (let i = 0; i < e.word.length; i++){
+    const x = e.dir === 'A' ? e.x + i : e.x;
+    const y = e.dir === 'D' ? e.y + i : e.y;
+    answers.set(x + ',' + y, e.word[i]);
+    const div = cellMap.get(x + ',' + y);
+    div.classList.add('on');
+    if (!div.querySelector('input')){
+      const inp = document.createElement('input');
+      inp.maxLength = 1;
+    // A phone would otherwise autocorrect and spell-check single letters,
+    // and float a suggestion bar over the grid.
+    inp.setAttribute('autocapitalize', 'characters');
+    inp.setAttribute('autocorrect', 'off');
+    inp.setAttribute('autocomplete', 'off');
+    inp.spellcheck = false;
+      inp.dataset.pos = x + ',' + y;
+      inp.setAttribute('aria-label', 'Row ' + (y + 1) + ', column ' + (x + 1));
+      inp.value = state[x + ',' + y] || '';
+      div.appendChild(inp);
+    }
+    if (i === 0 && !div.querySelector('.num')){
+      const n = document.createElement('span');
+      n.className = 'num';
+      n.textContent = e.num;
+      div.appendChild(n);
+    }
+  }
+});
+
+grid.addEventListener('input', ev => {
+  const inp = ev.target;
+  if (inp.tagName !== 'INPUT') return;
+  inp.value = inp.value.toUpperCase().replace(/[^A-Z]/g, '');
+  inp.classList.remove('right', 'wrong');
+  state[inp.dataset.pos] = inp.value;
+  saved.set(state);
+  if (inp.value){
+    const all = $$('#grid input');
+    const i = all.indexOf(inp);
+    if (i > -1 && all[i + 1]) all[i + 1].focus();
+  }
+});
+
+grid.addEventListener('keydown', ev => {
+  if (ev.key !== 'Backspace' || ev.target.value) return;
+  const all = $$('#grid input');
+  const i = all.indexOf(ev.target);
+  if (i > 0) all[i - 1].focus();
+});
+
+[['across', 'A'], ['down', 'D']].forEach(pair => {
+  const ol = document.getElementById(pair[0]);
+  DATA.entries.filter(e => e.dir === pair[1]).sort((a, b) => a.num - b.num).forEach(e => {
+    const li = document.createElement('li');
+    li.value = e.num;
+    li.textContent = e.clue + ' (' + e.word.length + ')';
+    li.addEventListener('click', () => {
+      const t = document.querySelector('#grid input[data-pos="' + e.x + ',' + e.y + '"]');
+      if (t) t.focus();
+    });
+    ol.appendChild(li);
+  });
+});
+
+document.getElementById('check').addEventListener('click', () => {
+  let right = 0, filled = 0;
+  const all = $$('#grid input');
+  all.forEach(inp => {
+    inp.classList.remove('right', 'wrong');
+    if (!inp.value) return;
+    filled++;
+    if (inp.value === answers.get(inp.dataset.pos)){ inp.classList.add('right'); right++; }
+    else inp.classList.add('wrong');
+  });
+  const s = document.getElementById('status');
+  if (right === all.length){
+    s.textContent = 'All of it. Finished.';
+    s.className = 'note ok';
+  } else {
+    s.textContent = right + ' right of ' + all.length + ', ' + filled + ' filled';
+    s.className = 'note';
+  }
+});
+
+document.getElementById('reveal').addEventListener('click', () => {
+  const empty = $$('#grid input').filter(i => !i.value);
+  if (!empty.length) return;
+  const pick = empty[Math.floor(Math.random() * empty.length)];
+  pick.value = answers.get(pick.dataset.pos);
+  pick.classList.add('right');
+  state[pick.dataset.pos] = pick.value;
+  saved.set(state);
+});
+
+document.getElementById('clear').addEventListener('click', () => {
+  $$('#grid input').forEach(i => { i.value = ''; i.classList.remove('right', 'wrong'); });
+  saved.set({});
+  document.getElementById('status').textContent = '';
+});
+
+</script>
+
+
+</body></html>
