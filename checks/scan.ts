@@ -122,9 +122,35 @@ const scanFor = (html: string, patterns: readonly Pattern[]): Finding[] =>
     })),
   );
 
-/** The policy every published tool carries. Kept here so the check is exact. */
-export const REQUIRED_CSP =
-  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:";
+/**
+ * The policy a published tool carries, in the order the policies were adopted.
+ *
+ * Two of them, because this repository holds tools published under both and each
+ * is correct for its date. The second added `form-action 'none'` and
+ * `base-uri 'none'` so that a tool's own form handler could be allowed to run:
+ * withholding `allow-forms` from the frame suppressed the `submit` event
+ * entirely, and the policy closes the channel the sandbox flag used to.
+ *
+ * Still exact, one string compared against another. A substring or "contains"
+ * check would accept a policy that merely *starts* the same way, which is the
+ * one thing this check exists to refuse.
+ *
+ * Appending to this list is how a future policy change lands here. Nothing is
+ * ever removed: a tool recorded years ago carries the policy of its day, and
+ * rewriting history to match today's would make the record a lie.
+ */
+export const ACCEPTED_CSP: readonly string[] = [
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:",
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'",
+];
+
+/**
+ * The policy a tool published today carries — the last one adopted.
+ *
+ * Kept as its own export because a check that wants "the current policy" should
+ * not have to know it is the end of a list.
+ */
+export const REQUIRED_CSP: string = ACCEPTED_CSP[ACCEPTED_CSP.length - 1] as string;
 
 export function checkPolicy(html: string): Finding[] {
   // The quote is captured and back-referenced rather than matched as a character
@@ -138,11 +164,13 @@ export function checkPolicy(html: string): Finding[] {
   if (!meta) {
     return [{ rule: 'policy/missing', detail: 'no Content-Security-Policy meta tag', line: 1 }];
   }
-  if (meta[3] !== REQUIRED_CSP) {
+  if (!ACCEPTED_CSP.includes(meta[3] as string)) {
     return [
       {
         rule: 'policy/unexpected',
-        detail: `policy is not the published one:\n    found:    ${meta[3]}\n    expected: ${REQUIRED_CSP}`,
+        detail:
+          `policy is not one this record accepts:\n    found:    ${meta[3]}\n` +
+          ACCEPTED_CSP.map((p) => `    accepted: ${p}`).join('\n'),
         line: lineOf(html, meta.index ?? 0),
       },
     ];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REQUIRED_CSP, checkPolicy, scan } from './scan.ts';
+import { ACCEPTED_CSP, REQUIRED_CSP, checkPolicy, scan } from './scan.ts';
 
 const wrap = (body: string) =>
   `<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="${REQUIRED_CSP}"><title>T</title></head><body>${body}</body></html>`;
@@ -81,6 +81,37 @@ describe('the checks themselves', () => {
 
     it('accepts the published policy exactly', () => {
       expect(checkPolicy(wrap(''))).toEqual([]);
+    });
+
+    /**
+     * Every policy this record has ever published under, not just the current
+     * one. Tools recorded before a policy change carry the policy of their day,
+     * and a check that accepted only the newest would call all of them malformed
+     * — which is how this repository silently stopped recording anything for a
+     * fortnight after `form-action 'none'` was added.
+     */
+    it.each(ACCEPTED_CSP.map((policy, i) => [i, policy]))(
+      'accepts policy %i, which some recorded tool was published under',
+      (_i, policy) => {
+        const html = `<head><meta http-equiv="Content-Security-Policy" content="${policy}"></head>`;
+        expect(checkPolicy(html)).toEqual([]);
+      },
+    );
+
+    it('still refuses a policy that is merely a prefix of an accepted one', () => {
+      // The reason this stayed an exact comparison rather than becoming a
+      // `startsWith`: a policy that begins correctly and then widens would pass.
+      const extended = `${REQUIRED_CSP}; connect-src *`;
+      const html = `<head><meta http-equiv="Content-Security-Policy" content="${extended}"></head>`;
+      expect(checkPolicy(html).map((f) => f.rule)).toEqual(['policy/unexpected']);
+    });
+
+    it('names every accepted policy when it refuses one, so the fix is obvious', () => {
+      const html = `<head><meta http-equiv="Content-Security-Policy" content="default-src *"></head>`;
+      const [finding] = checkPolicy(html);
+      for (const policy of ACCEPTED_CSP) {
+        expect(finding?.detail).toContain(policy);
+      }
     });
   });
 
