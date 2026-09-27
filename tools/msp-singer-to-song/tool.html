@@ -1,0 +1,295 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>singer to song</title>
+<style>
+:root{
+  --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
+  --hot:#e4384f; --cool:#49c5b1; --gold:#f2b134; --ok:#5fd68a; --bad:#ff6b7f;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 12% 8%,rgba(228,56,79,.10),transparent 45%),
+                   radial-gradient(circle at 88% 92%,rgba(73,197,177,.08),transparent 45%);
+}
+#app{max-width:1100px;margin:0 auto;padding:20px 18px 64px}
+header{border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+h1{
+  font-family:var(--mono);font-size:1.45rem;margin:0;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;
+}
+h1 .mark{color:var(--hot)}
+.sub{color:var(--dim);font-size:.9rem;margin-top:4px}
+h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;
+   color:var(--dim);margin:22px 0 8px;font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 220px;min-width:0}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:4px;font-family:var(--mono);
+      letter-spacing:.06em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:#131219;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:.9rem;
+}
+textarea{min-height:150px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--cool);outline-offset:1px;border-color:transparent}
+button{
+  background:var(--hot);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;
+}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.cool{background:var(--cool);color:#06211d}
+button.small{padding:5px 10px;font-size:.72rem}
+.note{color:var(--dim);font-size:.82rem}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)}
+.hidden{display:none!important}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.scroll{overflow-x:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}@media (hover:none){input,textarea,select{font-size:16px}}
+
+.board{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.tile{
+  background:#262431;border:1px solid var(--line);border-radius:8px;padding:10px 14px;
+  font-family:var(--mono);font-size:.86rem;cursor:pointer;color:var(--ink);text-align:left;
+}
+.tile:hover{border-color:var(--cool)}
+.tile.picked{border-color:var(--gold);color:var(--gold)}
+.tile.right{border-color:var(--ok);color:var(--ok)}
+.tile.wrong{border-color:var(--bad);color:var(--bad)}
+.tile.gone{opacity:.28;pointer-events:none}
+.bigq{font-size:1.1rem;margin:2px 0 14px;line-height:1.4}
+.meter{height:6px;background:#262431;border-radius:3px;overflow:hidden;margin:10px 0}
+.meter > div{height:100%;background:var(--cool);width:0;transition:width .3s}
+.scoreline{font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.col h2{margin-top:0}
+.col .tile{display:block;width:100%;margin-bottom:8px}
+.joined{color:var(--ok)}
+@media (max-width:620px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1><span class="mark">◆</span> singer to song</h1>
+<div class="sub">which guest singers sang on which songs</div></header>
+
+<div class="panel">
+  <p class="note" id="hint">Pick one from each side.</p>
+  <div class="cols">
+    <div class="col"><h2 id="hl">Left</h2><div id="left"></div></div>
+    <div class="col"><h2 id="hr">Right</h2><div id="right"></div></div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="again" class="ghost">Start again</button>
+    <span class="note" id="status"></span>
+  </div>
+</div>
+
+<footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
+</div>
+<script>
+const DATA = {"title":"singer to song","pairs":[{"id":"p0","a":"Nina Persson","b":"Your Love Alone Is Not Enough"},{"id":"p1","a":"Nina Hoss","b":"Europa Geht Durch Mich"},{"id":"p2","a":"Green Gartside","b":"Between the Clock and the Bed"},{"id":"p3","a":"Georgia Ruth","b":"Divine Youth"},{"id":"p4","a":"Julia Cumming","b":"The Secret He Had Missed"},{"id":"p5","a":"Mark Lanegan","b":"Blank Diary Entry"},{"id":"p6","a":"Ian McCulloch","b":"Some Kind of Nothingness"},{"id":"p7","a":"Richard Hawley","b":"Rewind the Film"}],"leftLabel":"Guest","rightLabel":"Track"};
+function esc(s){ return String(s).replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function store(key){ return {
+  get(f){ try { const v = localStorage.getItem(key); return v===null?f:JSON.parse(v); } catch(e){ return f; } },
+  set(v){ try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} } }; }
+function $(s,r){ return (r||document).querySelector(s); }
+function $$(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+const AudioKit = (() => {
+  let ctx = null;
+  const NOTES = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+
+  function ac(){
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  /** "A4" | "F#3" -> Hz. Returns 0 for a rest. */
+  function freq(note){
+    if (!note || note === 'r' || note === 'R') return 0;
+    const m = String(note).match(/^([A-Ga-g])([#b]?)(-?\d)$/);
+    if (!m) return 0;
+    const semi = NOTES[m[1].toUpperCase() + m[2]];
+    if (semi === undefined) return 0;
+    return 440 * Math.pow(2, (semi - 9) / 12 + (Number(m[3]) - 4));
+  }
+
+  /** One note. type: square | triangle | sawtooth | sine */
+  function beep(note, dur, opts){
+    const c = ac(); if (!c) return;
+    const o = opts || {};
+    const f = typeof note === 'number' ? note : freq(note);
+    if (!f) return;
+    const t = c.currentTime;
+    const d = dur || 0.18;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(f, t);
+    // A short attack and an exponential tail: without the ramp every note clicks.
+    const peak = (o.gain === undefined ? 0.16 : o.gain);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t); osc.stop(t + d + 0.02);
+  }
+
+  /** Percussion, from filtered noise — no samples exist to load. */
+  function hit(kind){
+    const c = ac(); if (!c) return;
+    const t = c.currentTime;
+    const len = kind === 'snare' ? 0.16 : 0.07;
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * len), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter();
+    f.type = kind === 'snare' ? 'highpass' : 'lowpass';
+    f.frequency.value = kind === 'snare' ? 1200 : 400;
+    const g = c.createGain(); g.gain.value = 0.12;
+    src.connect(f); f.connect(g); g.connect(c.destination);
+    src.start(t);
+  }
+
+  /**
+   * A tune is a compact string: "E4:q G4:q B4:h r:q".
+   * Durations: w h q e s (whole..sixteenth), default q.
+   * Returns a handle so a caller can stop it.
+   */
+  function parse(src){
+    return String(src).trim().split(/\s+/).filter(Boolean).map(tok => {
+      const [n, d] = tok.split(':');
+      const beats = {w:4, h:2, q:1, e:0.5, s:0.25}[d || 'q'] || 1;
+      return { note: n, beats };
+    });
+  }
+
+  function playTune(src, opts){
+    const c = ac(); if (!c) return { stop(){} };
+    const o = opts || {};
+    const bpm = o.bpm || 132;
+    const spb = 60 / bpm;
+    const seq = typeof src === 'string' ? parse(src) : src;
+    let at = 0;
+    const timers = [];
+    seq.forEach(step => {
+      const ms = at * spb * 1000;
+      timers.push(setTimeout(() => {
+        beep(step.note, step.beats * spb * 0.92, { type: o.type || 'square', gain: o.gain });
+        if (o.drums && step.note !== 'r') hit('kick');
+      }, ms));
+      at += step.beats;
+    });
+    if (o.onEnd) timers.push(setTimeout(o.onEnd, at * spb * 1000 + 60));
+    return { stop(){ timers.forEach(clearTimeout); }, duration: at * spb };
+  }
+
+  /** Small UI voices, so feedback is audible without being a tune. */
+  const sfx = {
+    good(){ beep('E5', .09); setTimeout(() => beep('B5', .14), 90); },
+    bad(){ beep('A3', .1, {type:'sawtooth'}); setTimeout(() => beep('D#3', .2, {type:'sawtooth'}), 95); },
+    click(){ beep('C6', .04, {gain:.07}); },
+    win(){ ['C5','E5','G5','C6'].forEach((n,i) => setTimeout(() => beep(n, .2), i * 110)); }
+  };
+
+  return { beep, hit, playTune, parse, freq, sfx, ready: () => !!ac() };
+})();
+
+
+let pickL = null, pickR = null, done = 0, wrong = 0;
+
+function shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+function build(){
+  done = 0; wrong = 0; pickL = null; pickR = null;
+  $('#hl').textContent = DATA.leftLabel || 'Left';
+  $('#hr').textContent = DATA.rightLabel || 'Right';
+  [['left', 'a'], ['right', 'b']].forEach(pair => {
+    const box = $('#' + pair[0]);
+    box.replaceChildren();
+    shuffle(DATA.pairs.slice()).forEach(p => {
+      const b = document.createElement('button');
+      b.className = 'tile'; b.type = 'button';
+      b.textContent = p[pair[1]];
+      b.dataset.id = p.id;
+      b.addEventListener('click', () => choose(pair[0], b));
+      box.appendChild(b);
+    });
+  });
+  status();
+}
+
+function choose(side, btn){
+  if (btn.classList.contains('gone')) return;
+  const cur = side === 'left' ? pickL : pickR;
+  if (cur) cur.classList.remove('picked');
+  btn.classList.add('picked');
+  if (side === 'left') pickL = btn; else pickR = btn;
+  if (pickL && pickR) judge();
+}
+
+function judge(){
+  const ok = pickL.dataset.id === pickR.dataset.id;
+  const a = pickL, b = pickR;
+  pickL = null; pickR = null;
+  a.classList.remove('picked'); b.classList.remove('picked');
+  if (ok){
+    a.classList.add('right', 'gone'); b.classList.add('right', 'gone');
+    done++;
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.good();
+  } else {
+    wrong++;
+    a.classList.add('wrong'); b.classList.add('wrong');
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.bad();
+    setTimeout(() => { a.classList.remove('wrong'); b.classList.remove('wrong'); }, 550);
+  }
+  status();
+}
+
+function status(){
+  const s = $('#status');
+  if (done === DATA.pairs.length){
+    s.textContent = 'All joined up' + (wrong ? ', with ' + wrong + ' wrong turn' + (wrong > 1 ? 's' : '') : ', first time');
+    s.className = 'note ok';
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.win();
+  } else {
+    s.textContent = done + ' of ' + DATA.pairs.length + ' joined';
+    s.className = 'note';
+  }
+}
+
+$('#again').addEventListener('click', build);
+build();
+
+</script>
+
+
+</body></html>
