@@ -1,4 +1,4 @@
-# MSP Discography Chronologically — review
+# Discography Chronologically — review
 
 **Published:** 2026-09-28 · **Approved by:** Paul Spencer · **Record written:** automatically, on publish
 
@@ -32,4 +32,4 @@ shasum -a 256 tools/msp-discography-chronologically/tool.html
 curl -s https://www.mimawsi.com/tools/d4450bf8-7d36-4202-b302-2b25443493dc.html | shasum -a 256
 ```
 
-Both must print `34799fe012f158266c9a254c19f3812f83ad93b0974dfd2536785831fc535c8a`.
+Both must print `5ffdccb81860b6083049e735623df3ed9786ea6cbbeb97e9c2cd891303546a88`.

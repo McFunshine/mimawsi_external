@@ -75,24 +75,73 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:v
 .meter > div{height:100%;background:var(--cool);width:0;transition:width .3s}
 .scoreline{font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
 
-.slot{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.slot{display:flex;flex-direction:column;gap:6px;margin:10px 0;position:relative}
 .card{
-  background:#262431;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
-  display:flex;justify-content:space-between;align-items:center;gap:8px;
-  touch-action:none;user-select:none;
+  background:#262431;border:1px solid var(--line);border-radius:8px;padding:7px 10px;
+  display:flex;align-items:center;gap:8px;
+  touch-action:pan-y;user-select:none;-webkit-user-select:none;
+  transition:transform .18s cubic-bezier(.2,.8,.2,1),border-color .18s,background .18s;
 }
-.card.lift{border-color:var(--cool);opacity:.92;box-shadow:0 6px 18px rgba(0,0,0,.5)}
 .card .lab{flex:1;font-size:.9rem;min-width:0;overflow-wrap:anywhere}
 .card .yr{font-family:var(--mono);font-size:.8rem;color:var(--dim);opacity:0;visibility:hidden;flex:0 0 auto}
 .card.shown .yr{opacity:1;visibility:visible}
 .card.right{border-color:var(--ok)}
 .card.wrong{border-color:var(--bad)}
-.card .grip{color:var(--dim);font-family:var(--mono);font-size:.9rem;cursor:grab;flex:0 0 auto;
-  padding:2px 4px;touch-action:none}
-.nudge{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
-.nudge button{padding:1px 7px;font-size:.6rem;line-height:1.5;background:#33303f;
-  color:var(--ink);border:1px solid var(--line);min-width:26px}
-.nudge button:disabled{opacity:.28}
+
+/* The handle is a 44px target, because a thumb is not a mouse pointer. */
+.card .grip{
+  color:var(--dim);font-family:var(--mono);font-size:1rem;cursor:grab;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  min-width:30px;min-height:42px;margin:-7px 0 -7px -4px;touch-action:none;
+}
+.card .grip:active{cursor:grabbing}
+.card .pos{
+  font-family:var(--mono);font-size:.72rem;color:var(--dim);
+  min-width:1.5em;text-align:right;flex:0 0 auto;font-variant-numeric:tabular-nums;
+}
+/* Empty until something displaces this row, then it says which way it went. */
+.card .flag{
+  font-family:var(--mono);font-size:.62rem;color:var(--gold);flex:0 0 auto;
+  width:11px;text-align:center;opacity:0;transition:opacity .14s;
+}
+.card.shoved-up .flag::before{content:'\25B2'}
+.card.shoved-down .flag::before{content:'\25BC'}
+.card.shoved-up .flag,.card.shoved-down .flag{opacity:1}
+
+.nudge{display:flex;gap:4px;flex:0 0 auto}
+.nudge button{
+  width:40px;height:40px;padding:0;font-size:.66rem;line-height:1;
+  background:#33303f;color:var(--ink);border:1px solid var(--line);
+}
+.nudge button:disabled{opacity:.25}
+
+/* Held: lifted out of the stack, following the finger, transitions off. */
+.card.arming{background:#2e2b3d;border-color:var(--cool)}
+.card.grabbed{
+  position:relative;z-index:5;transition:none;border-color:var(--cool);background:#322e42;
+  box-shadow:0 12px 28px rgba(0,0,0,.6);
+}
+.card.grabbed .pos{color:var(--cool)}
+.card.landing{transition:transform .17s cubic-bezier(.2,.8,.2,1)}
+.card.landed{border-color:var(--cool)}
+
+/* Displaced: the rows that got out of the way, marked while they slide. */
+.card.shoved-up,.card.shoved-down{border-color:var(--gold);background:#2b2838}
+.card.shoved-up .pos,.card.shoved-down .pos{color:var(--gold)}
+
+/* The dashed outline is where the held card will land if released now. */
+.ghost{
+  position:absolute;left:0;right:0;border:1px dashed var(--cool);border-radius:8px;
+  background:rgba(73,197,177,.07);pointer-events:none;z-index:0;
+  transition:top .18s cubic-bezier(.2,.8,.2,1);
+}
+.dragnote{
+  min-height:1.25em;font-family:var(--mono);font-size:.74rem;letter-spacing:.03em;
+  color:var(--gold);margin:2px 0 8px;
+}
+@media (prefers-reduced-motion:reduce){
+  .card,.ghost{transition-duration:.01ms}
+}
 </style>
 </head>
 <body>
@@ -101,8 +150,9 @@ footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:v
 <div class="sub">which came when, earliest at the top</div></header>
 
 <div class="panel">
-  <p class="note" id="hint">Earliest at the top. Drag a card, or use its up and down buttons.</p>
-  <div class="slot" id="list"></div>
+  <p class="note" id="hint">Earliest at the top. Drag by the ⋮⋮ handle, or hold a card to pick it up. The arrows move one step.</p>
+  <div class="slot" id="list" role="list"></div>
+  <p class="dragnote" id="dragnote" aria-live="polite"></p>
   <div class="row">
     <button id="check">Check the order</button>
     <button id="shuffle" class="ghost">Shuffle</button>
@@ -231,6 +281,14 @@ const AudioKit = (() => {
 
 let items = DATA.items.slice();
 const list = $('#list');
+const dragNote = $('#dragnote');
+
+const HOLD_MS = 240;   /* how long a finger must rest before it picks a card up */
+const SLOP = 12;       /* movement that cancels the hold, so the page can scroll */
+const GAP = 6;         /* fallback row gap, when there is only one row to measure */
+
+let busy = false;      /* a landing animation is playing; ignore new gestures */
+let noteTimer = null;
 
 function shuffle(a){
   for (let i = a.length - 1; i > 0; i--){
@@ -239,6 +297,9 @@ function shuffle(a){
   }
   return a;
 }
+
+function buzz(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+function click(){ if (typeof AudioKit !== 'undefined') AudioKit.sfx.click(); }
 
 function draw(){
   list.replaceChildren();
@@ -250,6 +311,8 @@ function draw(){
     d.setAttribute('role', 'listitem');
     d.innerHTML =
       '<span class="grip" aria-hidden="true">&#8942;&#8942;</span>'
+      + '<span class="pos" aria-hidden="true">' + (i + 1) + '</span>'
+      + '<span class="flag" aria-hidden="true"></span>'
       + '<span class="lab">' + esc(it.label) + '</span>'
       + '<span class="yr">' + esc(String(it.value)) + '</span>'
       + '<span class="nudge">'
@@ -262,67 +325,107 @@ function draw(){
   });
 }
 
+/* ---- saying what happened, in words, for anyone the motion passed by ---- */
+
+function phrase(names){
+  if (!names.length) return 'nothing else';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return names[0] + ' and ' + names[1];
+  if (names.length === 3) return names[0] + ', ' + names[1] + ' and ' + names[2];
+  return names[0] + ', ' + names[1] + ' and ' + (names.length - 2) + ' more';
+}
+
+function note(text, holdFor){
+  dragNote.textContent = text;
+  clearTimeout(noteTimer);
+  if (holdFor) noteTimer = setTimeout(() => { dragNote.textContent = ''; }, holdFor);
+}
+
+/* The rows between the old and the new position are exactly the ones that had
+ * to move, and they all moved the one way. Naming them is the whole point:
+ * a card going up means other cards come down, and that was invisible before.
+ *
+ * Two readings, because the indices mean different things either side of the
+ * splice: willMove reads the list as it still stands, didMove as it now stands. */
+function willMove(from, to){
+  const out = [];
+  if (from < to) for (let i = from + 1; i <= to; i++) out.push(items[i].label);
+  if (to < from) for (let i = to; i < from; i++) out.push(items[i].label);
+  return out;
+}
+
+function didMove(from, to){
+  const out = [];
+  if (from < to) for (let i = from; i < to; i++) out.push(items[i].label);
+  if (to < from) for (let i = to + 1; i <= from; i++) out.push(items[i].label);
+  return out;
+}
+
+function markShoved(from, to){
+  if (from === to) return;
+  const lo = Math.min(from, to), hi = Math.max(from, to);
+  const kids = Array.from(list.children);
+  kids.forEach((c, i) => {
+    if (i === to) { c.classList.add('landed'); return; }
+    if (i >= lo && i <= hi) c.classList.add(from < to ? 'shoved-up' : 'shoved-down');
+  });
+  setTimeout(() => {
+    Array.from(list.children).forEach(c => {
+      c.classList.remove('shoved-up', 'shoved-down', 'landed');
+    });
+  }, 1200);
+}
+
+function announce(from, to){
+  const others = didMove(from, to);
+  note(items[to].label + ' is now ' + (to + 1) + ' - ' + phrase(others)
+    + ' moved ' + (from < to ? 'up' : 'down') + '.', 4500);
+}
+
+/* ---- a move by button or key: reorder, then animate from where it was ---- */
+
 function move(from, to){
+  if (busy || drag) return;
   if (to < 0 || to >= items.length || from === to) return;
+
+  const kidsBefore = Array.from(list.children);
+  const wasAt = [];
+  kidsBefore.forEach((c, j) => {
+    wasAt[posIn(j, from, to)] = c.getBoundingClientRect().top;
+  });
+
   const m = items.splice(from, 1)[0];
   items.splice(to, 0, m);
   draw();
+
+  /* FLIP: put every row back where the eye last saw it, then let CSS carry it
+   * to its new place. A bare redraw teleports, and a teleport explains nothing. */
+  const kids = Array.from(list.children);
+  kids.forEach((c, i) => {
+    const d = wasAt[i] - c.getBoundingClientRect().top;
+    if (!d) return;
+    c.style.transition = 'none';
+    c.style.transform = 'translateY(' + d + 'px)';
+  });
+  /* Two frames, not one: the inverted positions have to be painted before the
+   * transition back is allowed to start, or there is nothing to watch. */
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      kids.forEach(c => { c.style.transition = ''; c.style.transform = ''; });
+    });
+  });
+
+  markShoved(from, to);
+  announce(from, to);
+  buzz(8);
+  click();
 }
 
-/* Buttons are the reliable path, and on a phone the only comfortable one. */
 list.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.up !== undefined) move(Number(b.dataset.up), Number(b.dataset.up) - 1);
   if (b.dataset.down !== undefined) move(Number(b.dataset.down), Number(b.dataset.down) + 1);
-  if (typeof AudioKit !== 'undefined') AudioKit.sfx.click();
-});
-
-/*
- * Dragging uses pointer events, not HTML5 drag-and-drop. A touchscreen never
- * fires a dragstart event, so the previous implementation was completely
- * unplayable on a phone while looking perfectly fine on a desktop — measured,
- * not guessed. Pointer events cover mouse, pen and finger with one path.
- *
- * (No backticks in here: this whole block lives inside a String.raw template,
- * and one would truncate the generator. That is the trap m01 warns about.)
- */
-let dragFrom = null, dragEl = null;
-
-list.addEventListener('pointerdown', e => {
-  if (e.target.closest('button')) return;
-  const card = e.target.closest('.card');
-  if (!card) return;
-  dragFrom = Number(card.dataset.i);
-  dragEl = card;
-  card.classList.add('lift');
-  card.setPointerCapture(e.pointerId);
-});
-
-list.addEventListener('pointermove', e => {
-  if (dragFrom === null) return;
-  e.preventDefault();
-  // Pointer capture keeps events on the original card, so the row under the
-  // finger has to be found by coordinate rather than read off the event target.
-  const over = document.elementFromPoint(e.clientX, e.clientY);
-  const card = over && over.closest ? over.closest('.card') : null;
-  if (!card || card === dragEl) return;
-  const to = Number(card.dataset.i);
-  const m = items.splice(dragFrom, 1)[0];
-  items.splice(to, 0, m);
-  dragFrom = to;
-  draw();
-  dragEl = list.children[to];
-  if (dragEl) dragEl.classList.add('lift');
-});
-
-list.addEventListener('pointerup', () => {
-  if (dragEl) dragEl.classList.remove('lift');
-  dragFrom = null; dragEl = null;
-});
-list.addEventListener('pointercancel', () => {
-  if (dragEl) dragEl.classList.remove('lift');
-  dragFrom = null; dragEl = null;
 });
 
 list.addEventListener('keydown', e => {
@@ -338,6 +441,240 @@ list.addEventListener('keydown', e => {
   const next = list.children[j];
   if (next) next.focus();
 });
+
+/* ------------------------------ dragging ---------------------------------
+ * Three things were wrong before, and all three showed up as the same
+ * complaint: cards flipping about on their own.
+ *
+ *   1. A press started a reorder immediately, so any tap that slid a pixel
+ *      shuffled the list. On a phone every tap slides a pixel.
+ *   2. Every pointermove rebuilt the list. That destroyed the element holding
+ *      pointer capture, which silently released it, so a drag died halfway and
+ *      left the board mid-shuffle.
+ *   3. touch-action:none on every row meant the list could not be scrolled at
+ *      all -- every swipe was read as a drag.
+ *
+ * So: a finger picks a card up from the handle, or by holding still for a
+ * moment; nothing is rebuilt until the card is put down; and the rows that get
+ * out of the way slide, carry an arrow, and are named in a line of text.
+ * ---------------------------------------------------------------------- */
+
+let drag = null;
+let hold = null;
+
+/* Measured once, when the card is picked up. Nothing reflows until it lands,
+ * so these stay true for the whole gesture. */
+function measure(){
+  const cards = Array.from(list.children);
+  const rects = cards.map(c => c.getBoundingClientRect());
+  const tops = rects.map(r => r.top + window.scrollY);
+  const hs = rects.map(r => r.height);
+  let gap = GAP;
+  if (tops.length > 1) gap = Math.max(0, tops[1] - (tops[0] + hs[0]));
+  return {
+    cards: cards, tops: tops, hs: hs, gap: gap,
+    listTop: list.getBoundingClientRect().top + window.scrollY
+  };
+}
+
+/* How far the held card must travel to rest in slot t: the heights it passed. */
+function restOffset(t){
+  const m = drag.m, from = drag.from;
+  let o = 0;
+  if (t > from) for (let j = from + 1; j <= t; j++) o += m.hs[j] + m.gap;
+  if (t < from) for (let j = t; j < from; j++) o -= m.hs[j] + m.gap;
+  return o;
+}
+
+/* Which slot the held card is over, judged against the other rows as they sit
+ * once it has been lifted out. Monotonic in dy, so it cannot oscillate. */
+function slotFor(dy){
+  const m = drag.m, from = drag.from;
+  const centre = m.tops[from] + dy + m.hs[from] / 2;
+  let t = 0, run = m.tops[0];
+  for (let j = 0; j < m.cards.length; j++){
+    if (j === from) continue;
+    if (run + m.hs[j] / 2 < centre) t++;
+    run += m.hs[j] + m.gap;
+  }
+  return t;
+}
+
+function posIn(j, from, t){
+  if (j === from) return t;
+  if (from < t && j > from && j <= t) return j - 1;
+  if (t < from && j >= t && j < from) return j + 1;
+  return j;
+}
+
+function render(dy){
+  const m = drag.m, from = drag.from;
+  const t = slotFor(dy);
+  const shift = m.hs[from] + m.gap;
+
+  m.cards.forEach((c, j) => {
+    if (j === from) return;
+    let d = 0;
+    if (from < t && j > from && j <= t) d = -shift;
+    if (t < from && j >= t && j < from) d = shift;
+    c.style.transform = d ? 'translateY(' + d + 'px)' : '';
+    c.classList.toggle('shoved-up', d < 0);
+    c.classList.toggle('shoved-down', d > 0);
+    const p = c.querySelector('.pos');
+    if (p) p.textContent = posIn(j, from, t) + 1;
+  });
+
+  drag.card.style.transform = 'translateY(' + dy + 'px)';
+  const dp = drag.card.querySelector('.pos');
+  if (dp) dp.textContent = t + 1;
+  if (drag.ghost) drag.ghost.style.top = (m.tops[from] + restOffset(t) - m.listTop) + 'px';
+
+  if (t !== drag.to){
+    drag.to = t;
+    buzz(6);
+    click();
+    if (t === from) note(items[from].label + ' back where it started.');
+    else {
+      const others = willMove(from, t);
+      note(items[from].label + ' to ' + (t + 1) + ' - ' + phrase(others)
+        + (others.length === 1 ? ' moves ' : ' move ') + (from < t ? 'up' : 'down'));
+    }
+  }
+}
+
+function pickUp(card, clientY, pointerId){
+  const m = measure();
+  const from = Number(card.dataset.i);
+  drag = {
+    from: from, to: from, card: card, m: m,
+    startPageY: clientY + window.scrollY, lastClientY: clientY,
+    pointerId: pointerId, scroller: null, ghost: null
+  };
+
+  const ghost = document.createElement('div');
+  ghost.className = 'ghost';
+  ghost.style.top = (m.tops[from] - m.listTop) + 'px';
+  ghost.style.height = m.hs[from] + 'px';
+  list.appendChild(ghost);
+  drag.ghost = ghost;
+
+  card.classList.add('grabbed');
+  try { card.setPointerCapture(pointerId); } catch (e) {}
+  buzz(14);
+  click();
+  render(0);
+}
+
+function dropHold(){
+  if (!hold) return;
+  clearTimeout(hold.timer);
+  hold.card.classList.remove('arming');
+  hold = null;
+}
+
+list.addEventListener('pointerdown', e => {
+  if (busy || drag) return;
+  if (e.target.closest('button')) return;
+  const card = e.target.closest('.card');
+  if (!card) return;
+
+  /* The handle is unambiguous, and a mouse or pen has no scrolling to protect,
+   * so both pick up at once. A finger on the body of the card has to wait. */
+  if (e.target.closest('.grip') || e.pointerType !== 'touch'){
+    pickUp(card, e.clientY, e.pointerId);
+    return;
+  }
+  const y = e.clientY, x = e.clientX, id = e.pointerId;
+  card.classList.add('arming');
+  hold = {
+    card: card, x: x, y: y,
+    timer: setTimeout(() => {
+      card.classList.remove('arming');
+      hold = null;
+      pickUp(card, y, id);
+    }, HOLD_MS)
+  };
+});
+
+list.addEventListener('pointermove', e => {
+  if (hold && (Math.abs(e.clientY - hold.y) > SLOP || Math.abs(e.clientX - hold.x) > SLOP)) dropHold();
+  if (!drag) return;
+  e.preventDefault();
+  drag.lastClientY = e.clientY;
+  render(e.clientY + window.scrollY - drag.startPageY);
+  edgeScroll();
+});
+
+/* touch-action is pan-y so the list still scrolls, which means the browser will
+ * happily scroll during a drag unless the move is cancelled here. */
+list.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
+window.addEventListener('scroll', () => { if (hold) dropHold(); }, { passive: true });
+
+/* Near the edge of the screen a long list has to come to the finger. */
+function edgeScroll(){
+  if (!drag) return;
+  const pad = 74;
+  const vel = () => {
+    const y = drag.lastClientY, h = window.innerHeight;
+    if (y < pad) return -Math.ceil((pad - y) / 7);
+    if (y > h - pad) return Math.ceil((y - (h - pad)) / 7);
+    return 0;
+  };
+  if (!vel()){
+    if (drag.scroller){ cancelAnimationFrame(drag.scroller); drag.scroller = null; }
+    return;
+  }
+  if (drag.scroller) return;
+  const step = () => {
+    if (!drag) return;
+    const v = vel();
+    if (!v){ drag.scroller = null; return; }
+    window.scrollBy(0, v);
+    render(drag.lastClientY + window.scrollY - drag.startPageY);
+    drag.scroller = requestAnimationFrame(step);
+  };
+  drag.scroller = requestAnimationFrame(step);
+}
+
+function putDown(){
+  if (hold){
+    const c = hold.card;
+    dropHold();
+    c.focus();          /* a tap selects, so the arrow keys have somewhere to act */
+    return;
+  }
+  if (!drag) return;
+
+  const from = drag.from, to = drag.to, card = drag.card, ghost = drag.ghost;
+  const rest = restOffset(to);
+  if (drag.scroller) cancelAnimationFrame(drag.scroller);
+  try { card.releasePointerCapture(drag.pointerId); } catch (e) {}
+  drag = null;
+  busy = true;
+
+  /* Settle into the open slot first, then swap in the real order underneath.
+   * By then the two layouts are identical, so the rebuild is invisible. */
+  card.classList.add('landing');
+  card.style.transform = rest ? 'translateY(' + rest + 'px)' : '';
+  if (ghost) ghost.remove();
+
+  setTimeout(() => {
+    card.classList.remove('grabbed', 'landing');
+    if (from !== to){
+      const m = items.splice(from, 1)[0];
+      items.splice(to, 0, m);
+    }
+    draw();
+    if (from !== to){ markShoved(from, to); announce(from, to); }
+    else note('');
+    busy = false;
+  }, 175);
+}
+
+list.addEventListener('pointerup', putDown);
+/* A cancelled pointer keeps the move rather than undoing it: the board already
+ * showed the new order, and snapping back is what read as "it all changed back". */
+list.addEventListener('pointercancel', putDown);
 
 $('#check').addEventListener('click', () => {
   const want = items.slice().sort((a, b) => a.value - b.value);
@@ -360,7 +697,13 @@ $('#check').addEventListener('click', () => {
   }
 });
 
-$('#shuffle').addEventListener('click', () => { shuffle(items); draw(); $('#status').textContent = ''; });
+$('#shuffle').addEventListener('click', () => {
+  if (busy || drag) return;
+  shuffle(items);
+  draw();
+  $('#status').textContent = '';
+  note('');
+});
 
 shuffle(items);
 draw();
