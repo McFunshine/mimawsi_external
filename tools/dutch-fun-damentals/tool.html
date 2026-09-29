@@ -1,0 +1,585 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Dutch fun(damentals)</title>
+<style>
+:root{
+  --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
+  --hot:#e4384f; --cool:#49c5b1; --gold:#f2b134; --ok:#5fd68a; --bad:#ff6b7f;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 12% 8%,rgba(228,56,79,.10),transparent 45%),
+                   radial-gradient(circle at 88% 92%,rgba(73,197,177,.08),transparent 45%);
+}
+#app{max-width:1100px;margin:0 auto;padding:20px 18px 64px}
+header{border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+h1{
+  font-family:var(--mono);font-size:1.45rem;margin:0;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;
+}
+h1 .mark{color:var(--hot)}
+.sub{color:var(--dim);font-size:.9rem;margin-top:4px}
+h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;
+   color:var(--dim);margin:22px 0 8px;font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 220px;min-width:0}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:4px;font-family:var(--mono);
+      letter-spacing:.06em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:#131219;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:.9rem;
+}
+textarea{min-height:150px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--cool);outline-offset:1px;border-color:transparent}
+button{
+  background:var(--hot);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;
+}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.cool{background:var(--cool);color:#06211d}
+button.small{padding:5px 10px;font-size:.72rem}
+.note{color:var(--dim);font-size:.82rem}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)}
+.hidden{display:none!important}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.scroll{overflow-x:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}@media (hover:none){input,textarea,select{font-size:16px}}
+
+/*
+ * Wide screens put the word list beside the grid, phones stack it underneath.
+ * The board column is minmax(0,1fr) rather than auto on purpose: an auto track
+ * sizes to its content, and since the cell size is measured back off that same
+ * column it would chase its own tail on every resize.
+ */
+.wslayout{display:grid;gap:16px;grid-template-columns:1fr}
+.wsboard{min-width:0}
+@media (min-width:760px){
+  .wslayout{grid-template-columns:minmax(0,1fr) minmax(160px,220px);align-items:start;gap:22px}
+  .wordlist{flex-direction:column;gap:2px}
+}
+.wsside h2{margin-top:0}
+.wswrap{position:relative;width:max-content;margin:0 auto}
+.ws{display:grid;gap:1px;user-select:none;touch-action:none;justify-content:center;margin:4px auto}
+.ws span{
+  width:var(--cell);height:var(--cell);display:grid;place-items:center;font-family:var(--mono);
+  font-size:calc(var(--cell) * .48);font-weight:700;background:#24222e;border-radius:3px;
+  color:var(--ink);cursor:pointer;touch-action:none;
+}
+/*
+ * Nothing fills a square. A found word is marked by its loop alone, and the
+ * line being dragged by its dashed loop — .sel and .hit stay on the elements
+ * as markers for the code (finish() reads .hit to find the leftover letters)
+ * but paint nothing. Only the leftovers at the end get a colour.
+ */
+.ws span.left{background:#3a1d24;color:var(--hot)}
+/* Fixed to the viewport so the cannons fire from the corners of the screen,
+   not the corners of the grid. Above everything, catching nothing. */
+.confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+/* The loops are drawn over the letters, so they must not eat the drag. */
+.wsrings{position:absolute;pointer-events:none;overflow:visible}
+.wordlist{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
+.wordlist span{font-family:var(--mono);font-size:.8rem;color:var(--dim)}
+.wordlist span.found{color:var(--ok);text-decoration:line-through}
+.wsfit{max-width:100%}
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1><span class="mark">◆</span> Dutch fun(damentals)</h1>
+<div class="sub">Drag across a word, or tap its first and last letter</div></header>
+
+<div class="panel">
+  <div class="wslayout">
+    <div class="wsboard">
+      <div class="wswrap" id="wrap">
+        <div id="grid" class="ws"></div>
+        <svg id="rings" class="wsrings" aria-hidden="true"></svg>
+      </div>
+    </div>
+    <div class="wsside">
+      <h2>Words</h2>
+      <div class="wordlist" id="list"></div>
+      <div class="row" style="margin-top:14px">
+        <button id="reveal" class="ghost small">Give up</button>
+      </div>
+      <div class="note" id="status" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
+</div>
+<script>
+const DATA = {"title":"Dutch fun(damentals)","n":15,"grid":["GETEMENOHPWELSK","LSOOOVONDISNERA","DIACRITICSVMEIM","ISSOPTYOUDAWSPI","NGINHCHNGNRTOHM","EYOTOIUOTEAHAOV","ETMILRYIGIBATNT","EENNOFCNTRHIOON","UBNUGSIXEFATILP","LASAYVAVOEKPOOR","PHONETICSSTNHGO","TPLTNSKHZLIAJYS","TLTYOCIHPARGODI","FASLERROBFOVWDD","NTPOCIBALYSXOWY"],"words":["PROSIDY","ORTHOGRAPHY","PHONETICS","SYNTAX","SEMANTICS","ALPHABET","SYLABIC","IDOGRAPHIC","PHONOLOGY","DIACRITICS","FRICTIVE","CONTINUANT","PHONEME","PLOSIVE","MORPHOLOGY","FALSEFRIENDS","BORREL","NATTEVINGERWERK","SVARABHAKTI"],"placements":[{"word":"NATTEVINGERWERK","x":0,"y":14,"dx":1,"dy":-1},{"word":"FALSEFRIENDS","x":9,"y":13,"dx":0,"dy":-1},{"word":"ORTHOGRAPHY","x":3,"y":1,"dx":1,"dy":1},{"word":"SVARABHAKTI","x":10,"y":1,"dx":0,"dy":1},{"word":"IDOGRAPHIC","x":14,"y":12,"dx":-1,"dy":0},{"word":"DIACRITICS","x":0,"y":2,"dx":1,"dy":0},{"word":"MORPHOLOGY","x":4,"y":0,"dx":0,"dy":1},{"word":"CONTINUANT","x":3,"y":2,"dx":0,"dy":1},{"word":"PHONOLOGY","x":13,"y":3,"dx":0,"dy":1},{"word":"SEMANTICS","x":13,"y":0,"dx":-1,"dy":1},{"word":"PHONETICS","x":0,"y":10,"dx":1,"dy":0},{"word":"FRICTIVE","x":5,"y":7,"dx":0,"dy":-1},{"word":"ALPHABET","x":1,"y":13,"dx":0,"dy":-1},{"word":"PLOSIVE","x":2,"y":14,"dx":1,"dy":-1},{"word":"PHONEME","x":9,"y":0,"dx":-1,"dy":0},{"word":"PROSIDY","x":14,"y":8,"dx":0,"dy":1},{"word":"SYLABIC","x":10,"y":14,"dx":-1,"dy":0},{"word":"SYNTAX","x":2,"y":13,"dx":1,"dy":-1},{"word":"BORREL","x":8,"y":13,"dx":-1,"dy":0}],"ml":61};
+function esc(s){ return String(s).replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function store(key){ return {
+  get(f){ try { const v = localStorage.getItem(key); return v===null?f:JSON.parse(v); } catch(e){ return f; } },
+  set(v){ try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} } }; }
+function $(s,r){ return (r||document).querySelector(s); }
+function $$(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+const AudioKit = (() => {
+  let ctx = null;
+  const NOTES = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+
+  function ac(){
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  /** "A4" | "F#3" -> Hz. Returns 0 for a rest. */
+  function freq(note){
+    if (!note || note === 'r' || note === 'R') return 0;
+    const m = String(note).match(/^([A-Ga-g])([#b]?)(-?\d)$/);
+    if (!m) return 0;
+    const semi = NOTES[m[1].toUpperCase() + m[2]];
+    if (semi === undefined) return 0;
+    return 440 * Math.pow(2, (semi - 9) / 12 + (Number(m[3]) - 4));
+  }
+
+  /** One note. type: square | triangle | sawtooth | sine */
+  function beep(note, dur, opts){
+    const c = ac(); if (!c) return;
+    const o = opts || {};
+    const f = typeof note === 'number' ? note : freq(note);
+    if (!f) return;
+    const t = c.currentTime;
+    const d = dur || 0.18;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(f, t);
+    // A short attack and an exponential tail: without the ramp every note clicks.
+    const peak = (o.gain === undefined ? 0.16 : o.gain);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t); osc.stop(t + d + 0.02);
+  }
+
+  /** Percussion, from filtered noise — no samples exist to load. */
+  function hit(kind){
+    const c = ac(); if (!c) return;
+    const t = c.currentTime;
+    const len = kind === 'snare' ? 0.16 : 0.07;
+    const buf = c.createBuffer(1, Math.ceil(c.sampleRate * len), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter();
+    f.type = kind === 'snare' ? 'highpass' : 'lowpass';
+    f.frequency.value = kind === 'snare' ? 1200 : 400;
+    const g = c.createGain(); g.gain.value = 0.12;
+    src.connect(f); f.connect(g); g.connect(c.destination);
+    src.start(t);
+  }
+
+  /**
+   * A tune is a compact string: "E4:q G4:q B4:h r:q".
+   * Durations: w h q e s (whole..sixteenth), default q.
+   * Returns a handle so a caller can stop it.
+   */
+  function parse(src){
+    return String(src).trim().split(/\s+/).filter(Boolean).map(tok => {
+      const [n, d] = tok.split(':');
+      const beats = {w:4, h:2, q:1, e:0.5, s:0.25}[d || 'q'] || 1;
+      return { note: n, beats };
+    });
+  }
+
+  function playTune(src, opts){
+    const c = ac(); if (!c) return { stop(){} };
+    const o = opts || {};
+    const bpm = o.bpm || 132;
+    const spb = 60 / bpm;
+    const seq = typeof src === 'string' ? parse(src) : src;
+    let at = 0;
+    const timers = [];
+    seq.forEach(step => {
+      const ms = at * spb * 1000;
+      timers.push(setTimeout(() => {
+        beep(step.note, step.beats * spb * 0.92, { type: o.type || 'square', gain: o.gain });
+        if (o.drums && step.note !== 'r') hit('kick');
+      }, ms));
+      at += step.beats;
+    });
+    if (o.onEnd) timers.push(setTimeout(o.onEnd, at * spb * 1000 + 60));
+    return { stop(){ timers.forEach(clearTimeout); }, duration: at * spb };
+  }
+
+  /** Small UI voices, so feedback is audible without being a tune. */
+  const sfx = {
+    good(){ beep('E5', .09); setTimeout(() => beep('B5', .14), 90); },
+    bad(){ beep('A3', .1, {type:'sawtooth'}); setTimeout(() => beep('D#3', .2, {type:'sawtooth'}), 95); },
+    click(){ beep('C6', .04, {gain:.07}); },
+    win(){ ['C5','E5','G5','C6'].forEach((n,i) => setTimeout(() => beep(n, .2), i * 110)); }
+  };
+
+  return { beep, hit, playTune, parse, freq, sfx, ready: () => !!ac() };
+})();
+
+
+const grid = $('#grid');
+const wrap = $('#wrap');
+const svg = $('#rings');
+const SVGNS = 'http://www.w3.org/2000/svg';
+const N = DATA.n;
+grid.style.gridTemplateColumns = 'repeat(' + N + ', var(--cell))';
+/*
+ * The list, the counter and the lookup all read this one array. They used to
+ * read DATA.words directly while `found` was a Set keyed by the word, so a
+ * word listed twice struck both entries through on one find but only counted
+ * once, and the score stuck for ever one short of the total. Deriving all
+ * three from the same distinct set means they cannot drift apart again, even
+ * if a hand-edited DATA turns up with repeats in it.
+ */
+const WORDS = Array.from(new Set(DATA.words));
+const saved = store('ws:' + DATA.title);
+const found = new Set(saved.get([]).filter(w => WORDS.indexOf(w) >= 0));
+let anchor = null;
+let live = null;              // the line being dragged right now, if any
+
+const cells = [];
+for (let y = 0; y < N; y++){
+  for (let x = 0; x < N; x++){
+    const s = document.createElement('span');
+    s.textContent = DATA.grid[y][x];
+    s.dataset.x = x; s.dataset.y = y;
+    grid.appendChild(s);
+    cells.push(s);
+  }
+}
+const at = (x, y) => cells[y * N + x];
+
+/*
+ * The cell size is measured off the column the grid actually got, not off the
+ * viewport: with the word list beside it on a wide screen the grid no longer
+ * owns the full width, and a hard-coded viewport sum would overflow. The cap
+ * keeps a six-word puzzle from filling a desktop screen; 13px is the floor, so
+ * a big grid on a phone stays legible rather than fitting at any cost.
+ */
+function sizeGrid(){
+  const avail = wrap.parentElement.clientWidth || 320;
+  const cell = Math.max(13, Math.min(avail >= 640 ? 38 : 30, Math.floor((avail - (N - 1)) / N)));
+  grid.style.setProperty('--cell', cell + 'px');
+}
+
+function centre(x, y){
+  const r = at(x, y).getBoundingClientRect(), g = grid.getBoundingClientRect();
+  return { x: r.left - g.left + r.width / 2, y: r.top - g.top + r.height / 2 };
+}
+
+/**
+ * The outline you would draw round a word by hand: a stadium, two half-circles
+ * round the end letters joined by two straight sides. a and b are the centres
+ * of the first and last cell, r the loop's half-width.
+ */
+function loop(a, b, r){
+  let ux = b.x - a.x, uy = b.y - a.y;
+  const len = Math.hypot(ux, uy);
+  if (len < 0.5) { ux = 1; uy = 0; } else { ux /= len; uy /= len; }
+  const nx = -uy, ny = ux;
+  // side = +1/-1 picks which flank of the word the point sits on.
+  const pt = (o, side) => (o.x + nx * r * side) + ' ' + (o.y + ny * r * side);
+  const arc = ' A ' + r + ' ' + r + ' 0 0 0 ';
+  return 'M ' + pt(a, 1) + ' L ' + pt(b, 1) + arc + pt(b, -1) +
+         ' L ' + pt(a, -1) + arc + pt(a, 1) + ' Z';
+}
+
+/*
+ * One colour per word, so two loops crossing the same letter stay apart. With
+ * no fill behind the letters the colour is the only thing telling one loop
+ * from another, so the order matters as much as the list: neighbours in the
+ * cycle are at least 60 degrees of hue apart, which is what stops two words
+ * found one after the other from being ringed in near enough the same colour.
+ */
+const INKS = ['#f2b134','#49c5b1','#e4384f','#58b5f0','#5fd68a','#e07ad6','#b5d33d','#8f7cf5'];
+
+function ring(d, stroke, dash){
+  const p = document.createElementNS(SVGNS, 'path');
+  p.setAttribute('d', d);
+  p.setAttribute('fill', 'none');
+  p.setAttribute('stroke', stroke);
+  p.setAttribute('stroke-width', '2.4');
+  p.setAttribute('stroke-linejoin', 'round');
+  if (dash) p.setAttribute('stroke-dasharray', '5 4');
+  return p;
+}
+
+function drawRings(){
+  const g = grid.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+  if (!g.width) return;
+  svg.style.left = (g.left - w.left) + 'px';
+  svg.style.top = (g.top - w.top) + 'px';
+  svg.setAttribute('width', g.width);
+  svg.setAttribute('height', g.height);
+  svg.setAttribute('viewBox', '0 0 ' + g.width + ' ' + g.height);
+  const cw = at(0, 0).getBoundingClientRect().width;
+
+  /*
+   * How far the loop stands off the line of letters, and it is not one number.
+   * Across a row or column the next square's centre is a whole cell away, so
+   * anything past half a cell is drawn over the neighbour's box; 0.44 keeps it
+   * just inside its own. On a diagonal the neighbouring parallel line is only
+   * 1/sqrt(2) = 0.707 of a cell away, so the loop has to come in to well under
+   * half of that — and 0.34 happens to sit right against the glyphs, which is
+   * where a loop drawn by hand would go anyway.
+   */
+  const radius = (dx, dy) => cw * (dx && dy ? 0.34 : 0.44);
+
+  const next = [];
+  DATA.placements.forEach((p, i) => {
+    if (!found.has(p.word)) return;
+    const last = p.word.length - 1;
+    next.push(ring(loop(centre(p.x, p.y), centre(p.x + p.dx * last, p.y + p.dy * last),
+                        radius(p.dx, p.dy)),
+                   INKS[i % INKS.length], false));
+  });
+  if (live){
+    const dx = Math.sign(live.b.x - live.a.x), dy = Math.sign(live.b.y - live.a.y);
+    next.push(ring(loop(centre(live.a.x, live.a.y), centre(live.b.x, live.b.y), radius(dx, dy)),
+                   '#f2b134', true));
+  }
+  svg.replaceChildren.apply(svg, next);
+}
+
+function relayout(){ sizeGrid(); drawRings(); }
+
+function lineBetween(a, b){
+  const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y);
+  const adx = Math.abs(b.x - a.x), ady = Math.abs(b.y - a.y);
+  if (adx && ady && adx !== ady) return null;         // not one of the eight
+  const len = Math.max(adx, ady) + 1;
+  const out = [];
+  for (let i = 0; i < len; i++) out.push({ x: a.x + dx * i, y: a.y + dy * i });
+  return out;
+}
+
+function clearSel(){ cells.forEach(c => c.classList.remove('sel')); live = null; }
+
+function tryLine(a, b){
+  const path = lineBetween(a, b);
+  if (!path) return false;
+  const word = path.map(p => DATA.grid[p.y][p.x]).join('');
+  const rev = word.split('').reverse().join('');
+  const hit = WORDS.find(w => w === word || w === rev);
+  if (!hit || found.has(hit)) return false;
+  found.add(hit);
+  saved.set(Array.from(found));
+  path.forEach(p => at(p.x, p.y).classList.add('hit'));
+  if (typeof AudioKit !== 'undefined') AudioKit.sfx.good();
+  paint();
+  return true;
+}
+
+function paint(){
+  $$('#list span').forEach(s => s.classList.toggle('found', found.has(s.dataset.w)));
+  const n = found.size, total = WORDS.length;
+  $('#status').textContent = n + ' of ' + total + ' found';
+  $('#status').className = n === total ? 'note ok' : 'note';
+  drawRings();
+  if (n === total) finish();
+}
+
+/*
+ * Two cannons in the bottom corners, firing up and inward. Plain canvas — the
+ * page has a default-src 'none' policy and no network, so there is no library
+ * to reach for, and it is thirty lines anyway. Ribbons are drawn as rotating
+ * rectangles that squash as they spin, which is enough to read as tumbling.
+ */
+function confetti(){
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = document.createElement('canvas');
+  c.className = 'confetti';
+  document.body.appendChild(c);
+  const g = c.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = window.innerWidth, H = window.innerHeight;
+  c.width = W * dpr; c.height = H * dpr;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const bits = [];
+  [[0.04, 1], [0.96, -1]].forEach(pair => {
+    for (let i = 0; i < 80; i++){
+      // Straight up is -PI/2; leaning by up to ~0.65rad towards the middle
+      // gives a spray rather than a fountain.
+      const ang = -Math.PI / 2 + pair[1] * (0.10 + Math.random() * 0.55);
+      const sp = 13 + Math.random() * 15;
+      bits.push({
+        x: W * pair[0], y: H * 0.98,
+        vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+        w: 5 + Math.random() * 6, h: 4 + Math.random() * 6,
+        rot: Math.random() * Math.PI, spin: (Math.random() - 0.5) * 0.45,
+        ink: INKS[(Math.random() * INKS.length) | 0]
+      });
+    }
+  });
+
+  const started = performance.now();
+  (function frame(now){
+    const age = now - started;
+    if (age > 5200) { c.remove(); return; }
+    g.clearRect(0, 0, W, H);
+    g.globalAlpha = age < 3800 ? 1 : 1 - (age - 3800) / 1400;
+    bits.forEach(b => {
+      b.vy += 0.34;                 // gravity
+      b.vx *= 0.992; b.vy *= 0.992; // air
+      b.x += b.vx; b.y += b.vy; b.rot += b.spin;
+      g.save();
+      g.translate(b.x, b.y);
+      g.rotate(b.rot);
+      g.fillStyle = b.ink;
+      // Squashing the width by the spin fakes the ribbon turning edge-on.
+      g.fillRect(-b.w / 2, -b.h / 2, b.w * Math.abs(Math.cos(b.rot)), b.h);
+      g.restore();
+    });
+    requestAnimationFrame(frame);
+  })(started);
+}
+
+// Celebrate finishing it here and now — not reopening a solved puzzle from
+// storage, and not giving up. Both of those still print the message.
+let armed = false, partied = false;
+
+function finish(){
+  /*
+   * The reveal is the grid and nothing else. Every square no found word
+   * covered lights up, and the message is read out of them in reading order —
+   * by the reader. Printing it underneath as well did the reading for them,
+   * which is the one thing a hidden message cannot survive; and with no
+   * message set it printed a wall of random capitals, which was worse.
+   */
+  const used = new Set();
+  $$('#grid span.hit').forEach(s => used.add(s.dataset.x + ',' + s.dataset.y));
+  let seen = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+    if (used.has(x + ',' + y)) continue;
+    // Only as far as the message runs. The squares after it hold random
+    // padding, and lighting those too would leave the reader picking the
+    // message out of seventy letters of noise. No message, nothing lights up.
+    if (seen++ < DATA.ml) at(x, y).classList.add('left');
+  }
+  if (armed && !partied){
+    partied = true;
+    confetti();
+    if (typeof AudioKit !== 'undefined') AudioKit.sfx.win();
+  }
+}
+
+function show(a, b){
+  const path = lineBetween(a, b);
+  clearSel();
+  if (!path) return;
+  path.forEach(p => at(p.x, p.y).classList.add('sel'));
+  live = { a: a, b: b };
+  drawRings();
+}
+
+/*
+ * One pointer path for both ways of playing. The old code had a click handler
+ * beside the pointer handlers, and pointerup fired first and cleared the anchor
+ * every time — so tapping a first and last letter could never work. A tap is
+ * just a pointerdown and pointerup with no move between them, so it is cheaper
+ * to tell them apart here than to run two overlapping sets of handlers.
+ */
+const cellOf = ev => {
+  const el = document.elementFromPoint(ev.clientX, ev.clientY);
+  const s = el && el.closest ? el.closest('#grid span') : null;
+  return s ? { x: Number(s.dataset.x), y: Number(s.dataset.y) } : null;
+};
+
+let start = null, moved = false;
+
+grid.addEventListener('pointerdown', ev => {
+  const s = ev.target.closest('span'); if (!s) return;
+  start = { x: Number(s.dataset.x), y: Number(s.dataset.y) };
+  moved = false;
+  show(anchor || start, start);
+});
+
+grid.addEventListener('pointermove', ev => {
+  if (!start) return;
+  const p = cellOf(ev);
+  if (!p || (p.x === start.x && p.y === start.y)) return;
+  moved = true;
+  show(start, p);
+});
+
+grid.addEventListener('pointerup', ev => {
+  if (!start) return;
+  const end = cellOf(ev) || start;
+  if (moved){                       // dragged across: that is the whole word
+    tryLine(start, end);
+    anchor = null;
+    clearSel();
+  } else if (anchor){               // second tap: first letter to this one
+    tryLine(anchor, end);
+    anchor = null;
+    clearSel();
+  } else {                          // first tap: hold it and wait
+    anchor = end;
+    show(anchor, anchor);
+  }
+  start = null; moved = false;
+  drawRings();
+});
+
+grid.addEventListener('pointercancel', () => {
+  start = null; moved = false; anchor = null; clearSel(); drawRings();
+});
+
+WORDS.forEach(w => {
+  const s = document.createElement('span');
+  s.textContent = w; s.dataset.w = w;
+  $('#list').appendChild(s);
+});
+
+$('#reveal').addEventListener('click', () => {
+  WORDS.forEach(w => found.add(w));
+  DATA.placements.forEach(p => {
+    for (let i = 0; i < p.word.length; i++){
+      at(p.x + p.dx * i, p.y + p.dy * i).classList.add('hit');
+    }
+  });
+  saved.set(Array.from(found));
+  partied = true;                    // no fanfare for giving up
+  paint();
+});
+
+DATA.placements.forEach(p => {
+  if (!found.has(p.word)) return;
+  for (let i = 0; i < p.word.length; i++) at(p.x + p.dx * i, p.y + p.dy * i).classList.add('hit');
+});
+
+sizeGrid();
+if (window.ResizeObserver) new ResizeObserver(relayout).observe(wrap.parentElement);
+window.addEventListener('resize', relayout);
+paint();
+armed = true;
+
+</script>
+
+
+</body></html>
