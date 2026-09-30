@@ -1,0 +1,744 @@
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'; base-uri 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Tonight's Setlist</title>
+<style>
+:root{
+  --bg:#14131a; --panel:#1d1c26; --line:#312f3f; --ink:#ece9f5; --dim:#918cab;
+  --hot:#e4384f; --cool:#49c5b1; --gold:#f2b134; --ok:#5fd68a; --bad:#ff6b7f;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;
+  background-image:radial-gradient(circle at 12% 8%,rgba(228,56,79,.10),transparent 45%),
+                   radial-gradient(circle at 88% 92%,rgba(73,197,177,.08),transparent 45%);
+}
+#app{max-width:1100px;margin:0 auto;padding:20px 18px 64px}
+header{border-bottom:2px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+h1{
+  font-family:var(--mono);font-size:1.45rem;margin:0;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;
+}
+h1 .mark{color:var(--hot)}
+.sub{color:var(--dim);font-size:.9rem;margin-top:4px}
+h2{font-family:var(--mono);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;
+   color:var(--dim);margin:22px 0 8px;font-weight:700}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 220px;min-width:0}
+label{display:block;font-size:.8rem;color:var(--dim);margin-bottom:4px;font-family:var(--mono);
+      letter-spacing:.06em;text-transform:uppercase}
+input,textarea,select{
+  width:100%;background:#131219;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:.9rem;
+}
+textarea{min-height:150px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--cool);outline-offset:1px;border-color:transparent}
+button{
+  background:var(--hot);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;cursor:pointer;
+}
+button:hover{filter:brightness(1.12)}
+button:focus-visible{outline:2px solid var(--cool);outline-offset:2px}
+button[disabled]{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.cool{background:var(--cool);color:#06211d}
+button.small{padding:5px 10px;font-size:.72rem}
+.note{color:var(--dim);font-size:.82rem}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .gold{color:var(--gold)}
+.hidden{display:none!important}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.scroll{overflow-x:auto}
+footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:.78rem}
+@media (max-width:620px){#app{padding:14px 12px 48px}h1{font-size:1.15rem}}
+
+.floor{display:grid;gap:16px;grid-template-columns:minmax(0,320px) minmax(0,1fr);align-items:start}
+@media (max-width:900px){.floor{grid-template-columns:minmax(0,1fr)}}
+.pool{position:sticky;top:12px}
+@media (max-width:900px){.pool{position:static}}
+#find{margin-bottom:8px}
+.chips{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow:auto;padding-right:2px}
+.chip{display:flex;align-items:center;gap:8px;width:100%;text-align:left;cursor:grab;
+  -webkit-user-drag:element;
+  background:#262431;border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+  color:var(--ink);font-family:var(--sans);font-size:.86rem;font-weight:400;
+  letter-spacing:0;text-transform:none}
+.chip:hover{border-color:var(--cool);filter:none}
+.chip:active{cursor:grabbing}
+.chip .cn{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.chip .cd{flex:0 0 auto;font-family:var(--mono);font-size:.76rem;color:var(--dim)}
+.chip .cd.guess{color:var(--gold);font-style:italic}
+.chip .tag{flex:0 0 auto;font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;
+  padding:2px 5px;border-radius:4px;border:1px solid rgba(242,177,52,.45);color:var(--gold)}
+.chip.head{cursor:pointer}
+.chip.open{border-color:var(--gold);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.chip.used{opacity:.34;cursor:default}
+.chip.used:hover{border-color:var(--line)}
+.vers{display:flex;flex-direction:column;gap:3px;padding:6px 6px 7px 14px;
+  border:1px solid var(--gold);border-top:0;border-bottom-left-radius:8px;
+  border-bottom-right-radius:8px;background:rgba(242,177,52,.05)}
+.ver{display:flex;align-items:center;gap:8px;width:100%;text-align:left;cursor:grab;
+  -webkit-user-drag:element;
+  background:transparent;border:1px solid transparent;border-radius:6px;padding:4px 7px;
+  color:var(--ink);font-family:var(--sans);font-size:.8rem;font-weight:400;
+  letter-spacing:0;text-transform:none}
+.ver:hover{border-color:var(--cool);background:#262431;filter:none}
+.ver .vn{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;color:var(--dim)}
+.ver .vn.plain{color:var(--ink)}
+.ver .cd{flex:0 0 auto;font-family:var(--mono);font-size:.74rem;color:var(--dim)}
+.pool.binding{outline:2px dashed var(--hot);outline-offset:4px;border-radius:10px}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.tick{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.68rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--dim);cursor:pointer}
+.tick input{width:auto;padding:0}
+.clockbar{height:9px;background:#262431;border-radius:5px;overflow:hidden;margin:2px 0 8px;
+  position:relative}
+.clockbar i{display:block;height:100%;background:var(--cool);width:0;transition:width .22s}
+.clockbar.over i{background:var(--hot)}
+.clockline{font-family:var(--mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:10px}
+.clockline b{color:var(--ink)}
+.clockline .over{color:var(--hot)}
+@media print{
+  header,footer,.pool,.ctrls,.clockbar,.clockline,.noprint{display:none!important}
+  #app{max-width:none;padding:0;margin:0}
+  .floor{display:block}
+  .panel{background:none;border:0;padding:0;margin:0}
+  body{background:#fff;background-image:none}
+}
+@page{margin:13mm}
+</style>
+</head>
+<body>
+<div id="app">
+<header><h1><span class="mark">◆</span> Tonight's Setlist</h1>
+<div class="sub">Build it, cut it to fit, print it, tape it down</div></header>
+
+<style id="sheetcss">
+.paper{display:flex;justify-content:center;padding:26px 24px 34px;overflow:hidden}
+.sheet{
+  position:relative;width:100%;max-width:560px;min-height:520px;
+  padding:26px 26px 40px;color:#14120e;background:#f7f4ea;
+  transform:rotate(-0.55deg);
+  box-shadow:0 20px 44px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.4) inset;
+  /* Condensed grotesques only — no webfont may be loaded, so this is the
+     stack every desktop actually has. Setlists are printed narrow because
+     narrow fits more words at a size readable from the drum riser. */
+  font-family:'Arial Narrow','Helvetica Neue Condensed','Liberation Sans Narrow',
+              'Franklin Gothic Medium',Haettenschweiler,Impact,Arial,sans-serif;
+  font-stretch:condensed;
+  background-image:
+    radial-gradient(circle at 18% 12%,rgba(0,0,0,.035),transparent 38%),
+    radial-gradient(circle at 84% 88%,rgba(120,96,50,.05),transparent 42%);
+}
+.sheet .wear{position:absolute;pointer-events:none}
+.tape{width:126px;height:32px;background:#26262a;opacity:.86;
+  box-shadow:0 2px 5px rgba(0,0,0,.4);
+  background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.10) 0 1px,transparent 1px 4px),
+                   repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 3px)}
+.tape.tl{top:-14px;left:-19px;transform:rotate(-25deg)}
+.tape.br{bottom:-12px;right:-18px;transform:rotate(-20deg)}
+.ring{width:128px;height:128px;border-radius:50%;border:9px solid rgba(122,84,38,.15);
+  right:7%;bottom:13%;transform:rotate(11deg) scaleY(.93)}
+.smudge{width:96px;height:52px;left:8%;bottom:6%;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(40,30,16,.10),transparent 68%)}
+.crease{inset:0;background:linear-gradient(90deg,transparent 45%,rgba(0,0,0,.055) 49.4%,
+  rgba(255,255,255,.65) 50.6%,transparent 55%)}
+.sheethead{border-bottom:3px solid #14120e;padding-bottom:7px;margin-bottom:12px}
+.sheethead .band{font-size:1.85rem;line-height:1;font-weight:700;text-transform:uppercase;
+  letter-spacing:.02em;word-break:break-word}
+.sheethead .where{display:flex;justify-content:space-between;gap:12px;margin-top:5px;
+  font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.62rem;
+  letter-spacing:.2em;text-transform:uppercase;color:#4a4437}
+.setlist{list-style:none;margin:0;padding:0}
+.song{position:relative;display:flex;align-items:baseline;gap:.42em;-webkit-user-drag:element;
+  font-size:var(--fs,26px);line-height:1.2;font-weight:700;text-transform:uppercase;
+  padding:.07em 0;border-bottom:1px dotted rgba(20,18,14,.13)}
+.song .num{flex:0 0 auto;min-width:1.5em;text-align:right;color:#8a8272;font-weight:400}
+.song .nm{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.song .dur{flex:0 0 auto;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-size:.42em;font-weight:400;font-stretch:normal;color:#7d7566;letter-spacing:.04em}
+.song .dur.guess{font-style:italic;color:#a08a4e}
+/* The tick-box has to be visible where it is ticked. Hiding the times only
+   at print time made a control that looked broken: you saw nothing change. */
+.sheet:not(.ptimes) .dur{display:none}
+.song .ctl{flex:0 0 auto;display:flex;gap:2px;align-items:center;margin-left:.15em}
+.song .ctl button{background:transparent;border:1px solid transparent;border-radius:4px;
+  color:#a09884;font-family:ui-monospace,Menlo,monospace;font-size:11px;font-weight:700;
+  line-height:1;padding:3px 4px;cursor:pointer;text-transform:none;letter-spacing:0}
+.song .ctl button:hover{color:#b3261e;border-color:rgba(20,18,14,.2)}
+.song .ctl .mv{opacity:0}
+.song:hover .ctl .mv,.song:focus-within .ctl .mv{opacity:1}
+@media (hover:none){.song .ctl .mv{opacity:1}}
+.song.dragging{opacity:.32}
+.setlist.over{background:rgba(20,18,14,.045);box-shadow:0 0 0 2px rgba(20,18,14,.18)}
+.ins{list-style:none;height:0;border-top:3px solid #b3261e;margin:0}
+.empty{list-style:none;padding:.9em .4em;text-align:center;color:#8a8272;
+  font-family:ui-monospace,Menlo,monospace;font-size:.66rem;letter-spacing:.16em;
+  text-transform:uppercase;border:1px dashed rgba(20,18,14,.28);border-radius:6px;margin:.3em 0}
+.encbar{display:flex;align-items:center;gap:.6em;margin:.85em 0 .35em;
+  border-top:3px solid #14120e;padding-top:.4em;
+  font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.62rem;
+  font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:#14120e}
+.sheetfoot{margin-top:1.1em;font-family:ui-monospace,Menlo,monospace;font-size:.56rem;
+  letter-spacing:.18em;text-transform:uppercase;color:#8a8272}
+
+/* Printed, it is a fresh one. The floor of the stage is a screen effect. */
+@media print{
+  .paper{padding:0;display:block;overflow:visible}
+  .sheet{transform:none;box-shadow:none;max-width:none;min-height:0;padding:0;
+    background:#fff;background-image:none}
+  .wear{display:none!important}
+  .song .ctl{display:none!important}
+  .song{border-bottom:1px dotted rgba(0,0,0,.2);font-size:var(--pfs,26px);padding:.1em 0}
+  .sheethead .band{font-size:2.2rem}
+  .empty{display:none!important}
+  .sheet.noenc .encbar{display:none!important}
+}
+</style>
+<div class="floor">
+  <div class="panel pool noprint" id="pool">
+    <h2>The songs</h2>
+    <p class="note" style="margin-top:0">Drag one onto the sheet, or click it. A song with
+    several versions opens when you click it; pick the one you will actually play, and it
+    closes again. Drag a song back here — or anywhere off the sheet — to take it off.</p>
+    <input id="find" placeholder="Find a song" autocomplete="off" spellcheck="false">
+    <div class="chips" id="chips"></div>
+    <div class="note" id="poolnote" style="margin-top:8px"></div>
+  </div>
+  <div>
+    <div class="ctrls noprint">
+      <button id="btnPrint">Print it</button>
+      <button id="btnSave" class="ghost">Save the sheet</button>
+      <button id="btnClear" class="ghost small">Start again</button>
+      <label class="tick"><input type="checkbox" id="tkTimes" checked=""> Times on the sheet</label>
+    </div>
+    <div class="clockbar noprint" id="bar"><i></i></div>
+    <div class="clockline noprint" id="clock"></div>
+    <div class="note bad noprint" id="printnote" style="margin-bottom:10px"></div>
+    <div class="paper">
+      <div class="sheet" id="sheet">
+        <span class="wear tape tl"></span>
+        <span class="wear tape br"></span>
+        <span class="wear ring"></span>
+        <span class="wear smudge"></span>
+        <span class="wear crease"></span>
+        <div class="sheethead">
+          <div class="band" id="shBand"></div>
+          <div class="where"><span id="shVenue"></span><span id="shDate"></span></div>
+        </div>
+        <ol class="setlist" id="main"></ol>
+        <div class="encbar" id="encbar">Encore</div>
+        <ol class="setlist" id="enc"></ol>
+        <div class="sheetfoot" id="shFoot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>One file. Works offline, forever. Nothing is sent anywhere.</footer>
+</div>
+<script>
+const DATA = {"title":"Tonight's Setlist","groups":[{"b":"1404","v":[{"q":"","d":150}]},{"b":"1985","v":[{"q":"","d":248},{"q":"alternate version","d":202},{"q":"demo","d":230},{"q":"Gwenno mix","d":274},{"q":"Steven Wilson’s Extended Eighties mix","d":507}]},{"b":"3 Ways to See Despair","v":[{"q":"","d":196},{"q":"demo","d":194}]},{"b":"30-Year War","v":[{"q":"","d":309},{"q":"demo","d":296}]},{"b":"4 Lonely Roads","v":[{"q":"","d":174},{"q":"demo","d":165}]},{"b":"4st 7lb","v":[{"q":"excerpt","d":111},{"q":"live","d":285},{"q":"MTV Most Wanted","d":292},{"q":"The Holy Bible, 1994 GB","d":305},{"q":"The Holy Bible, 2014 XW, Live","d":293},{"q":"The Holy Bible, 2014 XW, The Holy Bible - US Mix (Remastered)","d":310}]},{"b":"A Billion Balconies Facing the Sun","v":[{"q":"","d":223},{"q":"demo","d":211}]},{"b":"A Design for Life","v":[{"q":"A Design for Life","d":258},{"q":"David Wrench remix","d":270},{"q":"Everything Must Go, 2016 XE, Freed From Memories","d":261},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":272},{"q":"first rehearsal","d":236},{"q":"first rehearsal, Cardiff ’95","d":237},{"q":"live at the O2 · Rewind the Film","d":277},{"q":"live at the O2 · Send Away the Tigers","d":229},{"q":"live · Everything Must Go, 2006 GB","d":273},{"q":"live · Everything Must Go, 2016 XE, Everything Must Go + B sides","d":257},{"q":"remastered version","d":258},{"q":"Send Away the Tigers","d":292},{"q":"Stealth Sonic Orchestra instrumental version","d":276},{"q":"Stealth Sonic Orchestra remix","d":293},{"q":"Stealth Sonic Orchestra version","d":289}]},{"b":"A Secret Society","v":[{"q":"","d":175}]},{"b":"A Song for Departure","v":[{"q":"","d":260},{"q":"demo","d":258},{"q":"live at BBC Maida Vale","d":260}]},{"b":"A Song for the Sadness","v":[{"q":"","d":261},{"q":"demo","d":279}]},{"b":"A Soundtrack to Complete Withdrawal","v":[{"q":"","d":241}]},{"b":"A Vision of Dead Desire","v":[{"q":"","d":194}]},{"b":"Afterending","v":[{"q":"","d":232},{"q":"demo","d":243}]},{"b":"Ain’t Going Down","v":[{"q":"","d":188}]},{"b":"Alien Orders/Invisible Armies","v":[{"q":"","d":157}]},{"b":"All Alone Here","v":[{"q":"","d":199}]},{"b":"All Is Vanity","v":[{"q":"","d":215},{"q":"Errors remix","d":189},{"q":"original demo","d":183}]},{"b":"All We Make Is Entertainment","v":[{"q":"","d":258},{"q":"demo","d":223}]},{"b":"Always/Never","v":[{"q":"","d":222}]},{"b":"Anorexic Rodin","v":[{"q":"","d":193}]},{"b":"Another Invented Disease","v":[{"q":"","d":205},{"q":"House in the Woods demo","d":212}]},{"b":"Antarctic","v":[{"q":"","d":185}]},{"b":"Anthem for a Lost Cause","v":[{"q":"","d":232},{"q":"demo","d":202}]},{"b":"Antisocialmanifesto","v":[{"q":"","d":181}]},{"b":"Archives of Pain","v":[{"q":"","d":329}]},{"b":"Are Mothers Saints","v":[{"q":"","d":200}]},{"b":"As Holy as the Soil","v":[{"q":"That Buries Your Skin","d":200},{"q":"That Buries Your Skin · demo","d":200}]},{"b":"Askew Road","v":[{"q":"","d":180}]},{"b":"Australia","v":[{"q":"acoustic demo","d":253},{"q":"acoustic demo, Nick’s house ’96","d":256},{"q":"Everything Must Go, 2006 GB","d":245},{"q":"Everything Must Go, 2016 XE, Freed From Memories","d":218},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":222},{"q":"Lionrock remix","d":355},{"q":"remastered version","d":244},{"q":"Stephen Hague production","d":239}]},{"b":"Auto-Intoxication","v":[{"q":"","d":232},{"q":"demo","d":228}]},{"b":"Automatik Teknicolour","v":[{"q":"","d":221}]},{"b":"Autumnsong","v":[{"q":"acoustic version","d":223},{"q":"alternative video","d":237},{"q":"demo","d":235},{"q":"instrumental","d":223},{"q":"live","d":219},{"q":"Send Away the Tigers, 2017 AF","d":220},{"q":"Send Away the Tigers, 2017 XE, Live at Glastonbury, 24.06.07 / Extras","d":237},{"q":"Video","d":218}]},{"b":"Baby Elián","v":[{"q":"","d":218}]},{"b":"Bag Lady","v":[{"q":"","d":183},{"q":"Jonathan Krisp remix","d":307}]},{"b":"Ballad of the Bangkok Novotel","v":[{"q":"","d":158}]},{"b":"Be Natural","v":[{"q":"","d":313},{"q":"live rehearsal demo","d":262}]},{"b":"Behave Yourself Baby","v":[{"q":"Home demo","d":155}]},{"b":"Being Baptised","v":[{"q":"","d":242},{"q":"demo","d":248},{"q":"piano version","d":242}]},{"b":"Between the Clock and the Bed","v":[{"q":"","d":215},{"q":"demo","d":210}]},{"b":"Black Dog on My Shoulder","v":[{"q":"","d":288},{"q":"live rehearsal demo","d":162}]},{"b":"Black Garden","v":[{"q":"Everything Must Go, 2006 GB, disc 2","d":242},{"q":"Everything Must Go, 2016 XE, Everything Must Go + B sides","d":265}]},{"b":"Black Holes for the Young","v":[{"q":"","d":250}]},{"b":"Black Square","v":[{"q":"","d":248},{"q":"demo","d":222}]},{"b":"Blank Diary Entry","v":[{"q":"","d":278},{"q":"demo","d":284}]},{"b":"Blistered Mirrors","v":[{"q":"","d":172}]},{"b":"Bored Out of My Mind","v":[{"q":"","d":175}]},{"b":"Born a Girl","v":[{"q":"","d":252},{"q":"alternative version","d":262}]},{"b":"Born to End","v":[{"q":"","d":236},{"q":"Marcus demo","d":175}]},{"b":"Boxes & Lists","v":[{"q":"","d":236}]},{"b":"Bright Eyes","v":[{"q":"live version","d":195}]},{"b":"Broken Algorithms","v":[{"q":"","d":233},{"q":"demo","d":240}]},{"b":"Broken Up Again","v":[{"q":"","d":207}]},{"b":"Brushstrokes of Reunion","v":[{"q":"","d":215},{"q":"demo","d":218}]},{"b":"Builder of Routines","v":[{"q":"","d":149},{"q":"demo","d":162}]},{"b":"Buildings for Dead People","v":[{"q":"","d":329}]},{"b":"Caldey","v":[{"q":"","d":228}]},{"b":"Can’t Take My Eyes Off You","v":[{"q":"","d":194}]},{"b":"Cardiff Afterlife","v":[{"q":"","d":207},{"q":"cassette demo","d":243},{"q":"demo","d":235},{"q":"Tony Visconti mix","d":226}]},{"b":"Charles Windsor","v":[{"q":"","d":99}]},{"b":"Close My Eyes","v":[{"q":"","d":267}]},{"b":"Colt 45","v":[{"q":"South Wales demo","d":278}]},{"b":"Comfort Comes","v":[{"q":"","d":207}]},{"b":"Complicated Illusions","v":[{"q":"","d":203},{"q":"demo","d":190},{"q":"Nicky Wire home demo","d":80}]},{"b":"Concrete Fields","v":[{"q":"","d":238}]},{"b":"Condemned to Rock 'n' Roll","v":[{"q":"","d":367}]},{"b":"Critical Thinking","v":[{"q":"","d":181},{"q":"demo","d":173},{"q":"piano version","d":241}]},{"b":"Crucifix Kiss","v":[{"q":"Generation Terrorists, 1992 AU","d":219},{"q":"Generation Terrorists, 1992 US","d":202},{"q":"Gold Against the Soul","d":179},{"q":"House in the Woods demo","d":267},{"q":"live","d":191},{"q":"live at Club Citta 92","d":180},{"q":"live, 1992-02-20: The Astoria, London, UK","d":189},{"q":"Marcus demo","d":222}]},{"b":"Damn Dog","v":[{"q":"","d":113},{"q":"live","d":108}]},{"b":"Dead Martyrs","v":[{"q":"home cassette demo","d":209},{"q":"Know Your Enemy, 2001 JP","d":203},{"q":"Know Your Enemy, 2022 XE, Solidarity","d":206}]},{"b":"Dead Passive","v":[{"q":"","d":200}]},{"b":"Dead Trees and Traffic Islands","v":[{"q":"","d":223}]},{"b":"Dead Yankee Drawl","v":[{"q":"","d":225}]},{"b":"Dear Stephen","v":[{"q":"","d":211},{"q":"demo","d":212}]},{"b":"Death of a Digital Ghost","v":[{"q":"","d":217}]},{"b":"Decline & Fall","v":[{"q":"Critical Thinking","d":226},{"q":"Decline & Fall","d":222},{"q":"demo","d":228},{"q":"Steven Wilson remix","d":563}]},{"b":"Deleted Scenes","v":[{"q":"","d":204},{"q":"demo","d":210}]},{"b":"Democracy Coma","v":[{"q":"","d":223}]},{"b":"Diapause","v":[{"q":"","d":300},{"q":"demo","d":302}]},{"b":"Didn’t My Lord Deliver Daniel","v":[{"q":"","d":127}]},{"b":"Die in the Summertime","v":[{"q":"","d":185},{"q":"demo","d":145}]},{"b":"Distant Colours","v":[{"q":"","d":210},{"q":"demo","d":223}]},{"b":"Distractions","v":[{"q":"","d":237}]},{"b":"Divine Youth","v":[{"q":"","d":203},{"q":"demo","d":190}]},{"b":"Dixie","v":[{"q":"","d":43}]},{"b":"Donkeys","v":[{"q":"","d":191}]},{"b":"Don’t Be Evil","v":[{"q":"","d":200},{"q":"demo","d":207}]},{"b":"Don’t Let the Night Divide Us","v":[{"q":"","d":223},{"q":"demo","d":220},{"q":"Nicky Wire demo","d":66}]},{"b":"Door to the River","v":[{"q":"","d":278},{"q":"cassette demo","d":293}]},{"b":"Doors Closing Slowly","v":[{"q":"","d":172},{"q":"original demo","d":144},{"q":"The Horrors remix","d":207}]},{"b":"Dreaming a City","v":[{"q":"Hughesovka","d":280},{"q":"Hughesovka · demo","d":260}]},{"b":"Drug Drug Druggy","v":[{"q":"","d":207},{"q":"House in the Woods demo","d":209},{"q":"Impact demo","d":211},{"q":"live","d":207}]},{"b":"Dying Breeds","v":[{"q":"","d":243}]},{"b":"Dylan & Caitlin","v":[{"q":"","d":234},{"q":"demo","d":224}]},{"b":"Elvis Impersonator: Blackpool Pier","v":[{"q":"Everything Must Go, 2006 GB","d":209},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":190},{"q":"live","d":169},{"q":"remastered version","d":209}]},{"b":"Emily","v":[{"q":"","d":215},{"q":"demo","d":214},{"q":"Tony Visconti mix","d":220}]},{"b":"Empty Motorcade","v":[{"q":"","d":238}]},{"b":"Empty Souls","v":[{"q":"Empty Souls","d":248},{"q":"Lifeblood","d":245},{"q":"live at BBC Maida Vale","d":256},{"q":"live at the O2","d":242},{"q":"video","d":248}]},{"b":"Engage With Your Shadow","v":[{"q":"","d":205}]},{"b":"Enola/Alone","v":[{"q":"Everything Must Go, 2006 GB","d":248},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":235},{"q":"live","d":210},{"q":"remastered version","d":248}]},{"b":"Epicentre","v":[{"q":"cassette demo","d":242},{"q":"Know Your Enemy, 2001 JP","d":387},{"q":"Know Your Enemy, 2022 XE, Door to the River","d":313},{"q":"TLA mix","d":316}]},{"b":"Europa geht durch mich","v":[{"q":"","d":204},{"q":"demo","d":203},{"q":"Erol Alkan’s Mesmerise Eins rework","d":448},{"q":"Erol Alkan’s Mesmerise Zwei rework","d":467}]},{"b":"Everyone Knows/Nobody Cares","v":[{"q":"","d":252}]},{"b":"Everything I Do","v":[{"q":"I Do It for You","d":389}]},{"b":"Everything Must Go","v":[{"q":"acoustic version","d":214},{"q":"Everything Must Go, 2006 GB","d":221},{"q":"Everything Must Go, 2016 XE, Freed From Memories","d":236},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":264},{"q":"live","d":210},{"q":"live at the O2","d":211},{"q":"remastered version","d":221},{"q":"special version","d":223},{"q":"Stealth Sonic Orchestra remix","d":224},{"q":"Stealth Sonic Orchestra soundtrack","d":210},{"q":"The Chemical Brothers remix","d":393}]},{"b":"Everything Will Be","v":[{"q":"","d":308}]},{"b":"Evidence Against Myself","v":[{"q":"","d":183}]},{"b":"Faceless Sense of Void","v":[{"q":"London demo","d":207}]},{"b":"Facing Page: Top Left","v":[{"q":"","d":160},{"q":"Adem remix","d":220},{"q":"original demo","d":120}]},{"b":"Failure Bound","v":[{"q":"","d":176}]},{"b":"Faster","v":[{"q":"Butt Naked","d":216},{"q":"dub mix","d":402},{"q":"Dust Brothers mix","d":400},{"q":"Everything Must Go","d":230},{"q":"Faster / P.C.P.","d":234},{"q":"Glastonbury Festival ’94","d":234},{"q":"Send Away the Tigers","d":239},{"q":"The Holy Bible, 2014 XW, Live","d":216},{"q":"The Holy Bible, 2014 XW, Live","d":219},{"q":"Top of the Pops","d":212},{"q":"US video","d":236},{"q":"vocal mix","d":346}]},{"b":"Fear of Motion","v":[{"q":"","d":158}]},{"b":"Fearless Punk Ballad","v":[{"q":"","d":241}]},{"b":"Firefight","v":[{"q":"","d":225}]},{"b":"First Republic","v":[{"q":"","d":228}]},{"b":"Foggy Eyes","v":[{"q":"","d":175}]},{"b":"Forever Delayed","v":[{"q":"Forever Delayed EP","d":370},{"q":"Motorcycle Emptiness","d":218}]},{"b":"Found That Soul","v":[{"q":"","d":186},{"q":"TLA mix","d":187}]},{"b":"Fragments","v":[{"q":"","d":243},{"q":"demo","d":273},{"q":"live at BBC Maida Vale","d":256}]},{"b":"Freedom of Speech Won't Feed My Children","v":[{"q":"Know Your Enemy, 2001 JP","d":181},{"q":"Know Your Enemy, 2022 XE, Solidarity","d":173},{"q":"studio demo","d":177}]},{"b":"Freedom of Speech Won't Feed My Children / We Are All Bourgeois Now","v":[{"q":"","d":793}]},{"b":"From Despair to Where","v":[{"q":"From Despair to Where","d":216},{"q":"House in the Woods demo","d":214},{"q":"live","d":222},{"q":"live at the O2","d":217},{"q":"Send Away the Tigers","d":242},{"q":"The Holy Bible","d":202}]},{"b":"Further Away","v":[{"q":"","d":220},{"q":"demo","d":213},{"q":"remastered version","d":219}]},{"b":"Futurology","v":[{"q":"","d":186},{"q":"demo","d":184},{"q":"R. Seiliog remix","d":255}]},{"b":"Generation Terrorists","v":[{"q":"South Wales demo","d":179}]},{"b":"Band Explosion","v":[{"q":"","d":254}]},{"b":"Rapido","v":[{"q":"Generation Terrorists, 2012 GB, disc 3","d":76},{"q":"Generation Terrorists, 2012 GB, disc 3","d":263}]},{"b":"SNUB","v":[{"q":"Generation Terrorists at the BBC","d":320}]},{"b":"Ghost of Christmas","v":[{"q":"","d":222}]},{"b":"Glasnost","v":[{"q":"","d":195}]},{"b":"Glory, Glory","v":[{"q":"","d":35}]},{"b":"Gold Against the Soul","v":[{"q":"","d":335},{"q":"House in the Woods demo","d":281}]},{"b":"Golden Platitudes","v":[{"q":"","d":268},{"q":"demo","d":262}]},{"b":"Groundhog Days","v":[{"q":"home cassette demo","d":182},{"q":"Know Your Enemy, 2009 JP, disc 2","d":232},{"q":"Know Your Enemy, 2022 XE, Door to the River","d":298}]},{"b":"Hanging On","v":[{"q":"A Design for Life","d":187},{"q":"Everything Must Go","d":182}]},{"b":"Happy Bored Alone","v":[{"q":"","d":190},{"q":"demo","d":197}]},{"b":"Happy Ending","v":[{"q":"","d":207}]},{"b":"Hazelton Avenue","v":[{"q":"","d":207},{"q":"demo","d":185}]},{"b":"Heyday of the Blood","v":[{"q":"","d":165}]},{"b":"Hibernation","v":[{"q":"","d":212}]},{"b":"Hiding in Plain Sight","v":[{"q":"","d":214},{"q":"demo","d":217},{"q":"piano version","d":160}]},{"b":"His Last Elian","v":[{"q":"studio demo","d":204}]},{"b":"His Last Painting","v":[{"q":"","d":196},{"q":"Air version home cassette demo","d":245},{"q":"TLA mix","d":197}]},{"b":"Hold Me Like a Heaven","v":[{"q":"","d":258},{"q":"demo","d":258},{"q":"Public Service Broadcasting remix","d":179},{"q":"Warm Digits remix","d":291}]},{"b":"Holding Patterns","v":[{"q":"","d":175}]},{"b":"Horses Under Starlight","v":[{"q":"","d":189}]},{"b":"I Know the Numbers","v":[{"q":"","d":189}]},{"b":"I Live to Fall Asleep","v":[{"q":"","d":237},{"q":"cassette demo","d":185},{"q":"live at BBC Maida Vale","d":248}]},{"b":"(I Miss the) Tokyo Skyline","v":[{"q":"","d":226},{"q":"demo","d":192}]},{"b":"I Think I Found It","v":[{"q":"","d":190},{"q":"demo","d":186}]},{"b":"If You Tolerate This Your Children Will Be Next","v":[{"q":"Dave Bascombe mix","d":249},{"q":"David Holmes remix","d":602},{"q":"If You Tolerate This Your Children Will Be Next","d":291},{"q":"live","d":270},{"q":"Massive Attack remix","d":293},{"q":"Send Away the Tigers","d":269}]},{"b":"IfWhiteAmericaToldTheTruthForOneDayIt’sWorldWouldFallApart","v":[{"q":"The Holy Bible, 1994 GB","d":219},{"q":"The Holy Bible, 2014 XW, The Holy Bible - US Mix (Remastered)","d":223}]},{"b":"Imperial Bodybags","v":[{"q":"demo","d":211},{"q":"Send Away the Tigers, 2017 AF","d":211},{"q":"Send Away the Tigers, 2017 XE, Live at Glastonbury, 24.06.07 / Extras","d":229}]},{"b":"In Eternity","v":[{"q":"","d":257},{"q":"demo","d":259}]},{"b":"Indian Summer","v":[{"q":"acoustic version","d":236},{"q":"demo","d":203},{"q":"demo version","d":228},{"q":"Indian Summer","d":245},{"q":"instrumental","d":236},{"q":"live at VMAs","d":231},{"q":"Send Away the Tigers","d":235},{"q":"Video","d":249}]},{"b":"Inky Fingers","v":[{"q":"","d":161}]},{"b":"Interiors","v":[{"q":"Song for Willem de Kooning","d":258},{"q":"Song for Willem de Kooning · acoustic demo","d":175},{"q":"Song for Willem de Kooning · acoustic demo, Nick’s house ’95","d":178},{"q":"Song for Willem de Kooning · live","d":220},{"q":"Song for Willem de Kooning · remastered version","d":258}]},{"b":"International Blue","v":[{"q":"","d":232},{"q":"demo","d":236},{"q":"The Bluer Skies version","d":272}]},{"b":"Into the Waves of Love","v":[{"q":"","d":190},{"q":"demo","d":191}]},{"b":"Intravenous Agnostic","v":[{"q":"","d":243},{"q":"home cassette demo","d":147}]},{"b":"(It's Not War) Just the End of Love","v":[{"q":"","d":208},{"q":"demo","d":209},{"q":"live at the O2","d":209}]},{"b":"It's So Easy","v":[{"q":"live","d":173}]},{"b":"It’s All Gone","v":[{"q":"","d":247}]},{"b":"I’m Just a Patsy","v":[{"q":"","d":192},{"q":"demo","d":111}]},{"b":"I’m Leaving You for Solitude","v":[{"q":"","d":201}]},{"b":"I’m Not Working","v":[{"q":"","d":352},{"q":"home recording demo","d":260}]},{"b":"Jackie Collins Existential Question Time","v":[{"q":"","d":144},{"q":"original demo","d":139},{"q":"Saint Etienne remix","d":144}]},{"b":"Johatsu","v":[{"q":"","d":208}]},{"b":"Journal for Plague Lovers","v":[{"q":"","d":225},{"q":"acoustic version","d":172},{"q":"Optimo remix","d":433},{"q":"original demo","d":213}]},{"b":"Judge Yr’self","v":[{"q":"video","d":186}]},{"b":"Just a Kid","v":[{"q":"","d":212}]},{"b":"Kevin Carter","v":[{"q":"Busts Loose","d":466},{"q":"Busts Loose · remixed by Jon Carter","d":465},{"q":"Everything Must Go, 2006 GB","d":205},{"q":"Everything Must Go, 2016 XE, Freed From Memories","d":215},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":199},{"q":"first rehearsal","d":201},{"q":"first rehearsal, Cardiff ’95","d":203},{"q":"Kevin Carter","d":208},{"q":"live · Everything Must Go, 2006 GB","d":187},{"q":"live · Everything Must Go, 2009 JP, disc 2","d":203},{"q":"live · This Is My Truth Tell Me Yours","d":193},{"q":"remastered version","d":205},{"q":"Stealth Sonic Orchestra remix","d":400},{"q":"Stealth Sonic Orchestra soundtrack","d":398}]},{"b":"Kiss My Eyes for Eternity","v":[{"q":"","d":176}]},{"b":"Kodawari","v":[{"q":"","d":200}]},{"b":"La Tristesse Durera","v":[{"q":"Dust Brothers mix","d":350},{"q":"Scream to a Sigh · 7” version","d":235},{"q":"Scream to a Sigh · Chemical Brothers vocal remix","d":392},{"q":"Scream to a Sigh · dub mix","d":350},{"q":"Scream to a Sigh · Everything Must Go","d":230},{"q":"Scream to a Sigh · Gold Against the Soul","d":253},{"q":"Scream to a Sigh · House in the Woods demo","d":217},{"q":"Scream to a Sigh · live","d":234},{"q":"Scream to a Sigh · Send Away the Tigers","d":268},{"q":"Scream to a Sigh · The Holy Bible","d":236},{"q":"Scream to a Sigh · vocal mix","d":366}]},{"b":"Lady Lazarus","v":[{"q":"","d":251}]},{"b":"Last Exit on Yesterday","v":[{"q":"","d":161}]},{"b":"Late Day Peaks","v":[{"q":"","d":194},{"q":"demo","d":199},{"q":"piano version","d":189}]},{"b":"Let Robeson Sing","v":[{"q":"","d":226},{"q":"home cassette demo","d":158},{"q":"Ian Brown remix","d":302},{"q":"live","d":229},{"q":"live, 2001-01-17: Karl Marx Stadium, Havana, Cuba","d":227},{"q":"Thee Electroretro club mix by Felix da Housecat","d":378},{"q":"Thee Glitz mix by Felix da Housecat","d":378}]},{"b":"Let the Light Return","v":[{"q":"","d":183}]},{"b":"Let’s Go to War","v":[{"q":"","d":178},{"q":"demo","d":112}]},{"b":"Leviathan","v":[{"q":"","d":161}]},{"b":"Life Becoming a Landslide","v":[{"q":"Gold Against the Soul","d":256},{"q":"House in the Woods demo","d":249},{"q":"Life Becoming a Landslide E.P.","d":239},{"q":"live at the O2","d":277},{"q":"The Holy Bible","d":234}]},{"b":"Litany","v":[{"q":"","d":213}]},{"b":"Little Baby Nothing","v":[{"q":"Generation Terrorists","d":300},{"q":"House in the Woods demo","d":265},{"q":"Little Baby Nothing","d":253},{"q":"live acoustic","d":294},{"q":"live at the O2","d":283},{"q":"official video","d":260}]},{"b":"Little Girl Lost","v":[{"q":"","d":135}]},{"b":"Little Trolls","v":[{"q":"Know Your Enemy, 2009 JP, disc 2","d":218},{"q":"Know Your Enemy, 2022 XE, Solidarity","d":225}]},{"b":"Liverpool Revisited","v":[{"q":"","d":151},{"q":"demo","d":153}]},{"b":"Locust Valley","v":[{"q":"","d":250}]},{"b":"Lost Voices","v":[{"q":"","d":240}]},{"b":"Love Letter to the Future","v":[{"q":"","d":224}]},{"b":"Love Torn Us Under","v":[{"q":"","d":223}]},{"b":"Love's Sweet Exile","v":[{"q":"acoustic blue","d":139},{"q":"Bangkok live","d":186},{"q":"Generation Terrorists","d":209},{"q":"House in the Woods demo","d":195},{"q":"live","d":187},{"q":"Love’s Sweet Exile / Repeat","d":187},{"q":"official video","d":205}]},{"b":"Making of Your Love Alone Is Not Enough Video","v":[{"q":"","d":239}]},{"b":"Manorbier","v":[{"q":"","d":271},{"q":"demo","d":208}]},{"b":"Marlon J.D.","v":[{"q":"Journal for Plague Lovers, 2009 CA","d":161},{"q":"Journal for Plague Lovers, 2009 JP","d":170},{"q":"live at Belfast Ulster Hall","d":171},{"q":"NYPC’s Wire Up mix","d":295},{"q":"original demo","d":151}]},{"b":"Masking Tape","v":[{"q":"","d":252}]},{"b":"Masses Against the Classes","v":[{"q":"","d":203},{"q":"live from Newport Centre","d":209},{"q":"studio demo","d":145}]},{"b":"Mausoleum","v":[{"q":"","d":252},{"q":"demo","d":209}]},{"b":"Mayakovsky","v":[{"q":"","d":221},{"q":"demo","d":185}]},{"b":"Me and Stephen Hawking","v":[{"q":"British Sea Power remix","d":268},{"q":"Journal for Plague Lovers, 2009 CA","d":157},{"q":"Journal for Plague Lovers, 2009 JP","d":167},{"q":"original demo","d":160}]},{"b":"Melancholyme","v":[{"q":"","d":190}]},{"b":"Methadone Pretty","v":[{"q":"","d":237},{"q":"House in the Woods demo","d":252}]},{"b":"Midnight Sun","v":[{"q":"","d":221}]},{"b":"Mirror Gaze","v":[{"q":"","d":262}]},{"b":"Misguided Missile","v":[{"q":"","d":260},{"q":"demo","d":251}]},{"b":"Miss Europa Disco Dancer","v":[{"q":"Know Your Enemy, 2001 JP","d":233},{"q":"Know Your Enemy, 2022 XE, Solidarity","d":236}]},{"b":"Montana/Autumn/78","v":[{"q":"","d":194}]},{"b":"Morning Comrade","v":[{"q":"","d":196}]},{"b":"Motorcycle Emptiness","v":[{"q":"Everything Must Go","d":363},{"q":"Generation Terrorists","d":367},{"q":"House in the Woods demo","d":386},{"q":"live","d":363},{"q":"live at the O2","d":359},{"q":"official video","d":312},{"q":"South Wales demo","d":196},{"q":"Stealth Sonic Orchestra remix","d":374},{"q":"Stealth Sonic Orchestra soundtrack","d":381},{"q":"The Holy Bible","d":349},{"q":"Top of the Pops","d":195}]},{"b":"Motown Junk","v":[{"q":"Everything Must Go","d":245},{"q":"Gold Against the Soul","d":187},{"q":"live","d":243},{"q":"live at Club Citta 92","d":231},{"q":"London studio demo","d":173},{"q":"Motown Junk","d":237},{"q":"official video","d":232},{"q":"Send Away the Tigers","d":262}]},{"b":"Mr Carbohydrate","v":[{"q":"","d":254}]},{"b":"My Brave Friend","v":[{"q":"","d":204},{"q":"demo","d":196}]},{"b":"My Drowning World","v":[{"q":"","d":218}]},{"b":"My Guernica","v":[{"q":"","d":296},{"q":"studio demo","d":250}]},{"b":"My Guernica No 1","v":[{"q":"home acoustic demo","d":266}]},{"b":"My Little Empire","v":[{"q":"","d":249},{"q":"live rehearsal demo","d":255}]},{"b":"Nat West-Barclays-Midlands-Lloyds","v":[{"q":"Generation Terrorists, 1992 US","d":273},{"q":"Generation Terrorists, 2012 XE, 10″ BBC Radio 1 Rock Show Live Sessions","d":247},{"q":"Marcus demo","d":242},{"q":"New Film","d":288}]},{"b":"Natwest – Barclays – Midlands","v":[{"q":"House in the Woods demo","d":276}]},{"b":"Never Want Again","v":[{"q":"","d":216}]},{"b":"New Art Riot","v":[{"q":"in E minor","d":180},{"q":"live · Feminine Is Beautiful","d":174},{"q":"live · The Holy Bible","d":179},{"q":"New Art Riot EP","d":190},{"q":"South Wales demo","d":175},{"q":"The Holy Bible","d":179}]},{"b":"No Jubilees","v":[{"q":"","d":224}]},{"b":"No One Knows What It’s Like to Be Me","v":[{"q":"","d":185},{"q":"demo","d":178}]},{"b":"No Surface All Feeling","v":[{"q":"","d":261},{"q":"acoustic demo","d":240},{"q":"acoustic demo, Nick’s house ’95","d":242},{"q":"demo","d":219},{"q":"remastered version","d":255}]},{"b":"No-One Knows What It's Like to Be Me","v":[{"q":"","d":183}]},{"b":"Nobody Loved You","v":[{"q":"","d":285},{"q":"live rehearsal demo","d":327}]},{"b":"Nostalgic Pushead","v":[{"q":"","d":255},{"q":"House in the Woods demo","d":243}]},{"b":"Ocean Spray","v":[{"q":"Ellis Island Sound remix","d":254},{"q":"Kinobe remix","d":258},{"q":"Know Your Enemy","d":252},{"q":"live","d":251},{"q":"live at the O2","d":275},{"q":"Medicine remix","d":396},{"q":"Send Away the Tigers","d":247},{"q":"studio demo","d":176}]},{"b":"Of Walking Abortion","v":[{"q":"live","d":228},{"q":"Radio 1 evening session","d":219},{"q":"The Holy Bible, 1994 GB","d":241},{"q":"The Holy Bible, 2014 XW, The Holy Bible - US Mix (Remastered)","d":247}]},{"b":"OneManMilitia","v":[{"q":"","d":173},{"q":"demo","d":163}]},{"b":"Orwellian","v":[{"q":"","d":229},{"q":"demo","d":229}]},{"b":"Ostpolitik","v":[{"q":"","d":178}]},{"b":"Out of Time Revival","v":[{"q":"","d":176},{"q":"demo","d":181}]},{"b":"P.C.P.","v":[{"q":"","d":249},{"q":"Butt Naked","d":218},{"q":"Faster / P.C.P.","d":234},{"q":"Glastonbury Festival ’94","d":225},{"q":"The Holy Bible","d":228}]},{"b":"Patrick Bateman","v":[{"q":"","d":392}]},{"b":"Pedestal","v":[{"q":"","d":283}]},{"b":"Peeled Apples","v":[{"q":"Andy Weatherall remix","d":464},{"q":"Journal for Plague Lovers, 2009 CA","d":203},{"q":"Journal for Plague Lovers, 2009 JP","d":213},{"q":"live at Wolverhampton Civic Hall","d":211},{"q":"original demo","d":150}]},{"b":"People Give In","v":[{"q":"","d":236},{"q":"demo","d":234}]},{"b":"People Ruin Paintings","v":[{"q":"","d":263},{"q":"demo","d":262},{"q":"piano version","d":189}]},{"b":"Picturesque","v":[{"q":"","d":234}]},{"b":"Poleaxed","v":[{"q":"South Wales demo","d":169}]},{"b":"Postcards From a Young Man","v":[{"q":"","d":219},{"q":"demo","d":213}]},{"b":"Practice Sessions","v":[{"q":"","d":776}]},{"b":"Pretension/Repulsion","v":[{"q":"","d":125},{"q":"Four Tet remix","d":163},{"q":"original demo","d":126}]},{"b":"Primitive Painters / Bag Lady","v":[{"q":"","d":613}]},{"b":"Prologue to History","v":[{"q":"","d":284},{"q":"live rehearsal demo","d":229}]},{"b":"Quarantine","v":[{"q":"In My Place Of","d":232}]},{"b":"Quest for Ancient Colour","v":[{"q":"","d":248},{"q":"demo","d":222}]},{"b":"R.P. McMurphy","v":[{"q":"","d":245},{"q":"live","d":283},{"q":"live at Club Citta 92","d":231}]},{"b":"Raindrops Keep Falling on My Head","v":[{"q":"","d":170},{"q":"live acoustic version","d":129}]},{"b":"Ready for Drowning","v":[{"q":"","d":273},{"q":"live rehearsal demo","d":229}]},{"b":"Red Rubber","v":[{"q":"","d":180}]},{"b":"Red Sleeping Beauty","v":[{"q":"","d":198}]},{"b":"Rehearsals, Cardiff March 2007","v":[{"q":"","d":1271}]},{"b":"Removables","v":[{"q":"","d":212},{"q":"remastered version","d":212}]},{"b":"Rendition","v":[{"q":"","d":180},{"q":"demo","d":127}]},{"b":"Repeat","v":[{"q":"","d":193},{"q":"House in the Woods demo","d":191},{"q":"live","d":188},{"q":"Marcus demo","d":162},{"q":"New Film","d":196},{"q":"Stars and Stripes","d":249},{"q":"U.K.","d":190}]},{"b":"Repeat After Me","v":[{"q":"live","d":139}]},{"b":"Revol","v":[{"q":"live at the O2","d":214},{"q":"previously unreleased","d":194},{"q":"Reading Festival ’94","d":180},{"q":"Revol","d":188},{"q":"The Holy Bible, 2014 XW, Live","d":166},{"q":"The Holy Bible, 2014 XW, The Holy Bible - US Mix (Remastered)","d":185}]},{"b":"Rewind the Film","v":[{"q":"","d":397},{"q":"demo","d":375}]},{"b":"Rock and Roll Music","v":[{"q":"","d":173}]},{"b":"Rock ’n’ Roll Genius","v":[{"q":"","d":158}]},{"b":"Rosebud","v":[{"q":"","d":244}]},{"b":"Roses in the Hospital","v":[{"q":"51 Funk Salute","d":346},{"q":"7” version","d":256},{"q":"ECG mix · Gold Against the Soul","d":282},{"q":"ECG mix · Roses in the Hospital","d":276},{"q":"ECG remix","d":287},{"q":"Everything Must Go","d":256},{"q":"Filet O Gang remix","d":383},{"q":"Gold Against the Soul","d":303},{"q":"House in the Woods demo","d":294},{"q":"Impact demo","d":312},{"q":"live","d":286},{"q":"O G Psychomental mix","d":254},{"q":"OG Psychovocal remix","d":290}]},{"b":"Royal Correspondent","v":[{"q":"","d":211}]},{"b":"Running Out of Fantasy","v":[{"q":"","d":249},{"q":"demo","d":245}]},{"b":"S.Y.M.M.","v":[{"q":"studio demo","d":332},{"q":"This Is My Truth Tell Me Yours, 1998 JP","d":376},{"q":"This Is My Truth Tell Me Yours, 1998 ZA","d":357}]},{"b":"S.Y.M.M. / Nobody Loved You","v":[{"q":"","d":675}]},{"b":"Sculpture of Man","v":[{"q":"","d":113}]},{"b":"See It Like Sutherland","v":[{"q":"","d":236}]},{"b":"Send Away the Tigers","v":[{"q":"","d":218},{"q":"acoustic version","d":149},{"q":"demo","d":199}]},{"b":"Sepia","v":[{"q":"","d":234}]},{"b":"Sequels of Forgotten Wars","v":[{"q":"","d":262},{"q":"demo","d":258}]},{"b":"Sex, Power, Love and Money","v":[{"q":"","d":194},{"q":"demo","d":195}]},{"b":"She Bathed Herself in a Bath of Bleach","v":[{"q":"","d":138},{"q":"original demo","d":146},{"q":"Pariahs remix","d":138}]},{"b":"She Is Suffering","v":[{"q":"7\" radio edit","d":248},{"q":"acoustic version","d":245},{"q":"Butt Naked","d":253},{"q":"live at the O2","d":301},{"q":"MTV Most Wanted","d":244},{"q":"Radio 1 evening session","d":265},{"q":"The Holy Bible, 1994 GB","d":283},{"q":"The Holy Bible, 2014 XW, Live","d":261},{"q":"The Holy Bible, 2014 XW, The Holy Bible - US Mix (Remastered)","d":298}]},{"b":"Show Me the Wonder","v":[{"q":"","d":200},{"q":"demo","d":200}]},{"b":"Slash 'n' Burn","v":[{"q":"Generation Terrorists, 1992 US","d":239},{"q":"Generation Terrorists, 2012 XE, 10″ BBC Radio 1 Rock Show Live Sessions","d":228},{"q":"Gold Against the Soul","d":224},{"q":"House in the Woods demo","d":239},{"q":"live","d":226},{"q":"live at Club Citta 92","d":224},{"q":"official video","d":257},{"q":"The Holy Bible","d":212}]},{"b":"Sleepflower","v":[{"q":"","d":292},{"q":"House in the Woods demo","d":290},{"q":"live from Manchester Apollo","d":276}]},{"b":"Sleeping With the N.M.E.","v":[{"q":"","d":514}]},{"b":"Slow Reflections/Strange Delays","v":[{"q":"","d":164}]},{"b":"Small Black Flowers That Grow in the Sky","v":[{"q":"demo","d":185},{"q":"Everything Must Go, 2006 GB","d":183},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":196},{"q":"live","d":208},{"q":"remastered version","d":183}]},{"b":"So Dead","v":[{"q":"","d":269},{"q":"House in the Woods demo","d":264}]},{"b":"So Why So Sad","v":[{"q":"acoustic","d":227},{"q":"cassette demo","d":216},{"q":"Know Your Enemy","d":242},{"q":"original KYE version","d":245},{"q":"Sean Penn Mix","d":298},{"q":"So Why So Sad","d":235}]},{"b":"Socialist Serenade","v":[{"q":"","d":253}]},{"b":"Solitude Sometimes Is","v":[{"q":"","d":202},{"q":"demo","d":188},{"q":"Tony Visconti mix","d":211}]},{"b":"Some Kind of Nothingness","v":[{"q":"","d":231},{"q":"BBC live version","d":234},{"q":"demo","d":237}]},{"b":"Sorrow 16","v":[{"q":"","d":225}]},{"b":"Sorrow Sixteen","v":[{"q":"","d":243}]},{"b":"Soul Contamination","v":[{"q":"Generation Terrorists","d":167},{"q":"Stay Beautiful","d":156}]},{"b":"Spectators of Suicide","v":[{"q":"Generation Terrorists","d":281},{"q":"House in the Woods demo","d":350},{"q":"Spectators of Suicide","d":324},{"q":"Welsh version","d":323},{"q":"You Love Us","d":305}]},{"b":"Spent All Summer","v":[{"q":"South Wales demo","d":196}]},{"b":"Star Lover","v":[{"q":"","d":158}]},{"b":"Starlover","v":[{"q":"","d":161}]},{"b":"Stay Beautiful","v":[{"q":"Everything Must Go","d":166},{"q":"live at the O2","d":200},{"q":"Marcus demo","d":194},{"q":"official video","d":197},{"q":"Stay Beautiful","d":191}]},{"b":"Stay With Me","v":[{"q":"live","d":217}]},{"b":"Still Snowing in Sapporo","v":[{"q":"","d":368},{"q":"demo","d":315}]},{"b":"Strip It Down","v":[{"q":"","d":147},{"q":"live at Bath Moles","d":160}]},{"b":"Studies in Paralysis","v":[{"q":"","d":201}]},{"b":"Suicide Alley","v":[{"q":"","d":149},{"q":"South Wales demo","d":155}]},{"b":"Symphony of Tourette","v":[{"q":"","d":212},{"q":"House in the Woods demo","d":201}]},{"b":"T.E. Lawrence on a Bike","v":[{"q":"","d":206}]},{"b":"Take the Skinheads Bowling","v":[{"q":"","d":151}]},{"b":"Teenage 20/20","v":[{"q":"","d":181}]},{"b":"Tennessee","v":[{"q":"Generation Terrorists","d":186},{"q":"Gold Against the Soul","d":149},{"q":"House in the Woods demo","d":176},{"q":"I Get Low","d":205},{"q":"La Tristesse Durera (Scream to a Sigh)","d":209},{"q":"live","d":149},{"q":"live at Club Citta 92","d":149}]},{"b":"The Convalescent","v":[{"q":"Know Your Enemy, 2001 JP","d":355},{"q":"Know Your Enemy, 2022 XE, Solidarity","d":328},{"q":"studio rehearsal demo","d":330}]},{"b":"The Descent","v":[{"q":"Pages 1 & 2","d":210},{"q":"Pages 1 & 2 · demo","d":203}]},{"b":"The Drowners","v":[{"q":"live","d":197}]},{"b":"The Everlasting","v":[{"q":"","d":369},{"q":"Deadly Avenger’s Psalm 315 mix","d":341},{"q":"live","d":327},{"q":"live rehearsal demo","d":337},{"q":"Stealth Sonic Orchestra remix","d":313}]},{"b":"The Future Has Been Here 4 Ever","v":[{"q":"","d":222},{"q":"demo","d":227}]},{"b":"The Girl That Wanted to Be God","v":[{"q":"acoustic demo","d":237}]},{"b":"The Girl Who Wanted to Be God","v":[{"q":"acoustic demo, Nick’s house ’95","d":239},{"q":"Everything Must Go, 2006 GB","d":216},{"q":"Everything Must Go, 2016 XE, Live (1997-05-24: Nynex Arena, Manchester, UK)","d":210},{"q":"remastered version","d":216},{"q":"Stephen Hague production · Everything Must Go, 2006 GB, disc 2","d":213},{"q":"Stephen Hague production · Everything Must Go, Everything Must Go (10th Anniversary Edition), 2009 GB, disc 2","d":210}]},{"b":"The Intense Humming of Evil","v":[{"q":"","d":373},{"q":"live","d":298}]},{"b":"The Last Time I Saw Paris","v":[{"q":"","d":246}]},{"b":"The Left Behind","v":[{"q":"","d":189},{"q":"demo","d":180}]},{"b":"The Long Goodbye","v":[{"q":"","d":166}]},{"b":"The Love of Richard Nixon","v":[{"q":"","d":221},{"q":"drum machine demo","d":236},{"q":"live at BBC Maida Vale","d":228},{"q":"live at the O2","d":214},{"q":"live rehearsal demo","d":239},{"q":"video","d":224}]},{"b":"The Masses Against the Classes","v":[{"q":"","d":204},{"q":"live","d":183}]},{"b":"The Next Jet to Leave Moscow","v":[{"q":"","d":203},{"q":"demo","d":185}]},{"b":"The Second Great Depression","v":[{"q":"","d":249},{"q":"demo","d":279}]},{"b":"The Secret He Had Missed","v":[{"q":"","d":219},{"q":"demo","d":219},{"q":"piano acoustic version","d":296}]},{"b":"The Soulmates","v":[{"q":"","d":225}]},{"b":"The Sound of Detachment","v":[{"q":"","d":211}]},{"b":"The View From Stow Hill","v":[{"q":"","d":249},{"q":"demo","d":249}]},{"b":"The Vortices","v":[{"q":"","d":203}]},{"b":"The Year of Purification","v":[{"q":"","d":220}]},{"b":"Theme From M*A*S*H","v":[{"q":"Suicide Is Painless","d":224},{"q":"Suicide Is Painless · official video","d":220},{"q":"Suicide is Painless · Top of the Pops","d":186}]},{"b":"There by the Grace of God","v":[{"q":"live at the O2","d":240},{"q":"Saint Etienne mix","d":305},{"q":"Starecase mix","d":297},{"q":"There by the Grace of God, 2002 GB","d":212},{"q":"There by the Grace of God, 2002 GB","d":231}]},{"b":"These Dark Roads","v":[{"q":"","d":234}]},{"b":"This Is the Day","v":[{"q":"","d":218}]},{"b":"This Is Yesterday","v":[{"q":"Everything Must Go","d":190},{"q":"The Holy Bible, 1994 GB","d":239},{"q":"The Holy Bible, 2014 XW, Live","d":169},{"q":"The Holy Bible, 2014 XW, Live","d":252}]},{"b":"This Joke Sport Severed","v":[{"q":"","d":184},{"q":"live at Wolverhampton Civic Hall","d":187},{"q":"original demo","d":167},{"q":"Patrick Wolf remix","d":265}]},{"b":"This Sullen Welsh Heart","v":[{"q":"","d":253},{"q":"demo","d":236}]},{"b":"To Repel Ghosts","v":[{"q":"","d":239},{"q":"demo","d":219}]},{"b":"Together Stronger","v":[{"q":"C’mon Wales","d":230}]},{"b":"Too Cold Here","v":[{"q":"","d":216}]},{"b":"Track by Track","v":[{"q":"","d":768}]},{"b":"Train in Vain","v":[{"q":"live","d":195}]},{"b":"Tsunami","v":[{"q":"","d":231},{"q":"Cornelius remix","d":248},{"q":"live at the O2","d":214},{"q":"Stereolab remix","d":408},{"q":"studio demo","d":223}]},{"b":"UK Channel Boredom","v":[{"q":"Flexi disc","d":209}]},{"b":"Umbrella","v":[{"q":"","d":219},{"q":"acoustic","d":207},{"q":"Grand Slam mix","d":310}]},{"b":"Under My Wheels","v":[{"q":"","d":179}]},{"b":"Underdogs","v":[{"q":"","d":169},{"q":"demo","d":172}]},{"b":"Unseen Super Eight Montage","v":[{"q":"","d":360}]},{"b":"Unstoppable Salvation","v":[{"q":"","d":174}]},{"b":"Us Against You","v":[{"q":"","d":199}]},{"b":"Valley Boy","v":[{"q":"","d":311}]},{"b":"Velocity Girl","v":[{"q":"","d":101}]},{"b":"Virginia State Epileptic Colony","v":[{"q":"Fuck Buttons remix","d":329},{"q":"Journal for Plague Lovers, 2009 CA","d":202},{"q":"Journal for Plague Lovers, 2009 JP","d":205},{"q":"original demo","d":202}]},{"b":"Vivian","v":[{"q":"","d":255},{"q":"demo","d":269}]},{"b":"Voodoo Polaroids","v":[{"q":"","d":236}]},{"b":"Walk Me to the Bridge","v":[{"q":"","d":195},{"q":"demo","d":196},{"q":"live from Ancienne Belgique, Brussels","d":210}]},{"b":"Wattsville Blues","v":[{"q":"home cassette demo","d":165},{"q":"Know Your Enemy, 2001 JP","d":270},{"q":"Know Your Enemy, 2022 XE, Solidarity","d":250}]},{"b":"We Are All Bourgeois Now","v":[{"q":"","d":273}]},{"b":"We Her Majesty’s Prisoners","v":[{"q":"","d":322}]},{"b":"We Were Never Told","v":[{"q":"","d":200}]},{"b":"Welcome to the Dead Zone","v":[{"q":"","d":222}]},{"b":"What Happened to the Blue Generation","v":[{"q":"","d":182}]},{"b":"What’s My Name","v":[{"q":"live · Gold Against the Soul","d":122},{"q":"live · La Tristesse Durera (Scream to a Sigh)","d":103}]},{"b":"William's Last Words","v":[{"q":"","d":258},{"q":"original demo","d":254},{"q":"Underworld remix","d":376}]},{"b":"William’s Last Words / Bag Lady","v":[{"q":"","d":648}]},{"b":"Winterlovers","v":[{"q":"","d":192},{"q":"demo","d":190}]},{"b":"Winterlovers / Working Class Hero","v":[{"q":"","d":403}]},{"b":"Working Class Hero","v":[{"q":"","d":173}]},{"b":"Wrote for Luck","v":[{"q":"","d":162}]},{"b":"Yes","v":[{"q":"Everything Must Go","d":292},{"q":"Glastonbury Festival ’94","d":275},{"q":"live","d":270},{"q":"live from Manchester Apollo","d":280},{"q":"new film","d":299},{"q":"Radio 1 evening session","d":281},{"q":"The Holy Bible, 1994 GB","d":299},{"q":"The Holy Bible, 2014 XW, Live","d":277},{"q":"The Holy Bible, 2014 XW, The Holy Bible - US Mix (Remastered)","d":319}]},{"b":"You Know It’s Going to Hurt","v":[{"q":"instrumental","d":170}]},{"b":"You Love Us","v":[{"q":"Columbia version · official video","d":231},{"q":"Everything Must Go","d":273},{"q":"Generation Terrorists","d":194},{"q":"Heavenly","d":267},{"q":"Heavenly version · official video","d":268},{"q":"live at Club Citta 92","d":271},{"q":"live at the O2","d":212},{"q":"live · Little Baby Nothing","d":270},{"q":"live · Revol","d":185},{"q":"live · This Is My Truth Tell Me Yours","d":171},{"q":"Send Away the Tigers","d":217},{"q":"Stay Beautiful","d":266},{"q":"Top of the Pops","d":193},{"q":"You Love Us","d":259}]},{"b":"You Stole the Sun From My Heart","v":[{"q":"A Joyful Racket remix","d":315},{"q":"David Holmes remix","d":315},{"q":"live","d":268},{"q":"live at the O2","d":241},{"q":"Live From The Millennium Stadium 31st December 1999","d":265},{"q":"live rehearsal demo","d":229},{"q":"Mogwai remix","d":376},{"q":"Send Away the Tigers","d":271},{"q":"This Is My Truth Tell Me Yours","d":260}]},{"b":"Your Love Alone Is Not Enough","v":[{"q":"demo","d":242},{"q":"demo - 60’s Jangle, Faster Studios","d":244},{"q":"instrumental","d":237},{"q":"James solo acoustic","d":239},{"q":"James’ solo home acoustic cassette demo","d":221},{"q":"live at the O2","d":231},{"q":"Nina & James acoustic","d":240},{"q":"Nina solo acoustic","d":239},{"q":"Send Away the Tigers","d":263},{"q":"Video","d":260},{"q":"Wire’s original home acoustic cassette demo","d":181},{"q":"Your Love Alone Is Not Enough","d":236}]},{"b":"Yourself","v":[{"q":"","d":251},{"q":"live in Bangkok","d":225}]},{"b":"You’re Tender and You’re Tired","v":[{"q":"","d":278},{"q":"studio demo","d":231}]}],"band":"Manic Street Preachers","venue":"Dina's Back Garden","date":"Fri 13 Oct","slot":4800,"gap":25,"ebreak":180,"ontop":true};
+function esc(s){ return String(s).replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function store(key){ return {
+  get(f){ try { const v = localStorage.getItem(key); return v===null?f:JSON.parse(v); } catch(e){ return f; } },
+  set(v){ try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} } }; }
+function $(s,r){ return (r||document).querySelector(s); }
+function $$(s,r){ return Array.from((r||document).querySelectorAll(s)); }
+
+
+var GROUPS = DATA.groups || [];
+var GAP = DATA.gap == null ? 25 : DATA.gap;
+var EBREAK = DATA.ebreak == null ? 180 : DATA.ebreak;
+var SLOT = DATA.slot || 4200;
+var ENCORE_ON_TOP = !!DATA.ontop;
+var CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+          "img-src data: blob:; form-action 'none'; base-uri 'none'";
+
+var mem = store('setlist:' + (DATA.title || 'setlist'));
+var set = [];      // [{g: group index, v: version index}], the whole night in order
+var encAt = 0;     // set[encAt..] is the encore
+var ptimes = true;
+var openG = -1;    // which group is expanded; one at a time, so it reads as a pop-open
+var filter = '';
+var drag = null;
+var pendingK = 0;
+var insLine = document.createElement('li');
+insLine.className = 'ins';
+
+function songOf(e){ return GROUPS[e.g].v[e.v]; }
+function nameOf(e){ return GROUPS[e.g].b; }
+function usedG(gi){
+  for (var i = 0; i < set.length; i++) if (set[i].g === gi) return true;
+  return false;
+}
+function chosenOf(gi){
+  for (var i = 0; i < set.length; i++) if (set[i].g === gi) return set[i].v;
+  return -1;
+}
+
+/* ── time ── */
+
+function fmt(s){
+  s = Math.max(0, Math.round(s));
+  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  var mm = (h && m < 10) ? '0' + m : String(m);
+  return (h ? h + ':' : '') + mm + ':' + (x < 10 ? '0' : '') + x;
+}
+
+/* The clock is the whole night: every song, the pause between each one, and
+   the walk-off before the encore. A set that is only the sum of its songs is
+   always about eight minutes short of the truth. */
+function totals(){
+  var mainN = encAt, encN = set.length - encAt, t = 0, e = 0, i;
+  for (i = 0; i < set.length; i++){
+    if (i < encAt) t += songOf(set[i]).d; else e += songOf(set[i]).d;
+  }
+  if (mainN > 1) t += GAP * (mainN - 1);
+  if (encN > 1) e += GAP * (encN - 1);
+  if (mainN > 0 && encN > 0) e += EBREAK;
+  return { main: t, enc: e, all: t + e, mainN: mainN, encN: encN,
+           against: ENCORE_ON_TOP ? t : t + e };
+}
+
+/* ── the list, and what may be done to it ── */
+
+function removeAt(i){
+  if (i < 0 || i >= set.length) return;
+  set.splice(i, 1);
+  if (i < encAt) encAt--;
+}
+
+function insertAt(i, entry, intoEnc){
+  if (i < 0) i = 0;
+  if (i > set.length) i = set.length;
+  set.splice(i, 0, entry);
+  if (!intoEnc) encAt++;
+}
+
+/* Up and down cross the encore line by moving the line, not the song past it:
+   pressing down on the last song of the main set makes it the first song of
+   the encore, which is what the button looks like it should do. */
+function nudge(i, d){
+  if (d > 0){
+    if (i === encAt - 1){ encAt--; render(); return; }
+    if (i >= set.length - 1) return;
+  } else {
+    if (i === encAt){ encAt++; render(); return; }
+    if (i <= 0) return;
+  }
+  var j = i + d, a = set[i];
+  set[i] = set[j]; set[j] = a;
+  render();
+}
+
+/* ── drawing the sheet ── */
+
+function clearIns(){ if (insLine.parentNode) insLine.parentNode.removeChild(insLine); }
+
+function rowNode(setIdx, num){
+  var e = set[setIdx], s = songOf(e);
+  var li = document.createElement('li');
+  li.className = 'song';
+  li.draggable = true;
+  // The version is never printed. It lives here, where you can check which one
+  // you costed the night against without it ending up on the paper.
+  if (s.q) li.title = nameOf(e) + ' — ' + s.q;
+
+  var n = document.createElement('span');
+  n.className = 'num'; n.textContent = num + '.';
+  var nm = document.createElement('span');
+  nm.className = 'nm'; nm.textContent = nameOf(e);
+  var du = document.createElement('span');
+  du.className = 'dur' + (s.g ? ' guess' : '');
+  du.textContent = fmt(s.d);
+
+  var ctl = document.createElement('span');
+  ctl.className = 'ctl noprint';
+  var up = document.createElement('button');
+  up.type = 'button'; up.className = 'mv'; up.textContent = '▲';
+  up.setAttribute('aria-label', 'Move ' + nameOf(e) + ' up');
+  up.addEventListener('click', function(){ nudge(setIdx, -1); });
+  var dn = document.createElement('button');
+  dn.type = 'button'; dn.className = 'mv'; dn.textContent = '▼';
+  dn.setAttribute('aria-label', 'Move ' + nameOf(e) + ' down');
+  dn.addEventListener('click', function(){ nudge(setIdx, 1); });
+  var x = document.createElement('button');
+  x.type = 'button'; x.textContent = '×';
+  x.setAttribute('aria-label', 'Take ' + nameOf(e) + ' off the setlist');
+  x.addEventListener('click', function(){ removeAt(setIdx); render(); });
+  ctl.appendChild(up); ctl.appendChild(dn); ctl.appendChild(x);
+
+  li.appendChild(n); li.appendChild(nm); li.appendChild(du); li.appendChild(ctl);
+
+  li.addEventListener('dragstart', function(ev){
+    drag = { kind: 'set', i: setIdx };
+    ev.dataTransfer.effectAllowed = 'move';
+    try { ev.dataTransfer.setData('text/plain', nameOf(e)); } catch (err) {}
+    $('#pool').classList.add('binding');
+    setTimeout(function(){ li.classList.add('dragging'); }, 0);
+  });
+  li.addEventListener('dragend', function(){
+    li.classList.remove('dragging');
+    $('#pool').classList.remove('binding');
+    clearIns(); drag = null;
+  });
+  return li;
+}
+
+function fillList(list, from, to, startNum){
+  list.replaceChildren();
+  for (var i = from; i < to; i++) list.appendChild(rowNode(i, i - from + startNum));
+  if (from === to){
+    var li = document.createElement('li');
+    li.className = 'empty noprint';
+    li.textContent = list.id === 'enc'
+      ? 'Encore — drop one here'
+      : 'Drop the first song here';
+    list.appendChild(li);
+  }
+}
+
+/* ── drawing the pool ── */
+
+function rangeText(g){
+  var lo = Infinity, hi = -Infinity, i;
+  for (i = 0; i < g.v.length; i++){
+    if (g.v[i].d < lo) lo = g.v[i].d;
+    if (g.v[i].d > hi) hi = g.v[i].d;
+  }
+  return lo === hi ? fmt(lo) : fmt(lo) + '–' + fmt(hi);
+}
+
+function addEntry(gi, vi){
+  if (usedG(gi)) return;
+  insertAt(encAt, { g: gi, v: vi }, false);
+  openG = -1;          // picking a version collapses the group behind it
+  render();
+}
+
+function poolDragStart(gi, vi){
+  return function(ev){
+    drag = { kind: 'pool', g: gi, v: vi };
+    ev.dataTransfer.effectAllowed = 'copy';
+    try { ev.dataTransfer.setData('text/plain', GROUPS[gi].b); } catch (err) {}
+  };
+}
+
+function paintPool(){
+  var box = $('#chips');
+  box.replaceChildren();
+  var shown = 0, i, j;
+  for (i = 0; i < GROUPS.length; i++){
+    var g = GROUPS[i];
+    if (filter && g.b.toLowerCase().indexOf(filter) < 0) continue;
+    shown++;
+    var used = usedG(i);
+    var many = g.v.length > 1;
+    var pick = used ? chosenOf(i) : -1;
+
+    var head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'chip' + (used ? ' used' : '') + (many ? ' head' : '') +
+                     (openG === i ? ' open' : '');
+    head.draggable = !used && !many;
+    var nm = document.createElement('span');
+    nm.className = 'cn'; nm.textContent = g.b;
+    head.appendChild(nm);
+    if (many && !used){
+      var tg = document.createElement('span');
+      tg.className = 'tag';
+      tg.textContent = g.v.length + ' versions';
+      head.appendChild(tg);
+    }
+    var shows = used ? g.v[pick] : (many ? null : g.v[0]);
+    var d = document.createElement('span');
+    d.className = 'cd' + (shows && shows.g ? ' guess' : '');
+    d.textContent = shows ? fmt(shows.d) : rangeText(g);
+    head.appendChild(d);
+    head.setAttribute('aria-label', g.b + (many ? ', ' + g.v.length + ' versions' : '') +
+      (used ? ', already on the setlist' : ''));
+    if (many && !used) head.setAttribute('aria-expanded', openG === i ? 'true' : 'false');
+
+    if (!used){
+      if (many){
+        head.addEventListener('click', (function(k){
+          return function(){ openG = openG === k ? -1 : k; paintPool(); };
+        })(i));
+      } else {
+        head.addEventListener('click', (function(k){
+          return function(){ addEntry(k, 0); };
+        })(i));
+        head.addEventListener('dragstart', poolDragStart(i, 0));
+        head.addEventListener('dragend', function(){ clearIns(); drag = null; });
+      }
+    }
+    box.appendChild(head);
+
+    if (many && !used && openG === i){
+      var wrap = document.createElement('div');
+      wrap.className = 'vers';
+      for (j = 0; j < g.v.length; j++){
+        var v = g.v[j];
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'ver'; b.draggable = true;
+        var vn = document.createElement('span');
+        vn.className = 'vn' + (v.q ? '' : ' plain');
+        vn.textContent = v.q || 'no version given';
+        var vd = document.createElement('span');
+        vd.className = 'cd' + (v.g ? ' guess' : '');
+        vd.textContent = fmt(v.d);
+        b.appendChild(vn); b.appendChild(vd);
+        b.setAttribute('aria-label', g.b + (v.q ? ', ' + v.q : '') + ', ' + fmt(v.d));
+        b.addEventListener('click', (function(k, m){
+          return function(){ addEntry(k, m); };
+        })(i, j));
+        b.addEventListener('dragstart', poolDragStart(i, j));
+        b.addEventListener('dragend', function(){ clearIns(); drag = null; });
+        wrap.appendChild(b);
+      }
+      box.appendChild(wrap);
+    }
+  }
+
+  var left = GROUPS.length - set.length;
+  $('#poolnote').textContent = filter
+    ? shown + ' of ' + GROUPS.length + ' songs match.'
+    : (left === 0 ? 'Every song is on the sheet.'
+                  : left + (left === 1 ? ' song' : ' songs') + ' still off the sheet.');
+}
+
+function paintClock(){
+  var T = totals();
+  var pct = SLOT > 0 ? Math.min(100, (T.against / SLOT) * 100) : 0;
+  var bar = $('#bar');
+  bar.classList.toggle('over', T.against > SLOT);
+  bar.firstElementChild.style.width = pct + '%';
+
+  var line = $('#clock');
+  if (!set.length){
+    line.textContent = 'Nothing on the sheet yet. You have ' + fmt(SLOT) + '.';
+    return;
+  }
+  var n = set.length;
+  var diff = SLOT - T.against;
+  line.replaceChildren();
+  var a = document.createElement('span');
+  a.innerHTML = '<b>' + n + '</b> ' + (n === 1 ? 'song' : 'songs') +
+    (T.encN ? ' · <b>' + T.encN + '</b> in the encore' : '') +
+    ' · <b>' + fmt(T.against) + '</b> of ' + fmt(SLOT) + ' · ';
+  line.appendChild(a);
+  var b = document.createElement('span');
+  if (diff >= 0){ b.textContent = fmt(diff) + ' spare'; }
+  else { b.className = 'over'; b.textContent = 'over by ' + fmt(-diff); }
+  line.appendChild(b);
+  if (ENCORE_ON_TOP && T.encN){
+    var c = document.createElement('span');
+    c.textContent = ' · encore ' + fmt(T.enc) + ' on top';
+    line.appendChild(c);
+  }
+}
+
+function render(){
+  var T = totals(), i;
+  fillList($('#main'), 0, encAt, 1);
+  fillList($('#enc'), encAt, set.length, 1);
+  $('#sheet').classList.toggle('noenc', T.encN === 0);
+
+  /* Type shrinks as the list grows, the way a real one does — the sheet is a
+     fixed size and the last song still has to be legible from the riser. */
+  var n = set.length;
+  var fs = n <= 8 ? 32 : n <= 11 ? 28 : n <= 14 ? 25 : n <= 17 ? 22 :
+           n <= 21 ? 19 : n <= 26 ? 17 : 15;
+  $('#sheet').style.setProperty('--fs', fs + 'px');
+
+  /* Printed it is a different size entirely, because a sheet taped to a stage
+     is read from the drum riser and should fill the paper. A4 at a 13mm margin
+     is about 696 x 1025 css px; the songs get what is left after the head and
+     the encore rule, and the longest title has to fit across without wrapping,
+     because a wrapped line eats a whole slot out of the height budget. */
+  var longest = 1;
+  for (i = 0; i < set.length; i++) longest = Math.max(longest, nameOf(set[i]).length);
+  var pfs = Math.min(54, 880 / Math.max(1, n * 1.4), 690 / (longest * 0.5));
+  $('#sheet').style.setProperty('--pfs', Math.max(11, Math.floor(pfs)) + 'px');
+  $('#sheet').classList.toggle('ptimes', ptimes);
+
+  var foot = [];
+  if (T.all) foot.push(fmt(T.all) + ' on stage');
+  var guessed = 0;
+  for (i = 0; i < set.length; i++) if (songOf(set[i]).g) guessed++;
+  if (guessed) foot.push(guessed + (guessed === 1 ? ' time' : ' times') + ' guessed');
+  $('#shFoot').textContent = foot.join('  ·  ');
+
+  paintPool();
+  paintClock();
+  mem.set({ set: set, encAt: encAt, ptimes: ptimes });
+}
+
+/* ── dragging ── */
+
+function placeIns(list, y){
+  var rows = Array.prototype.filter.call(list.children, function(c){
+    return c !== insLine && c.classList.contains('song') && !c.classList.contains('dragging');
+  });
+  var k = rows.length;
+  for (var i = 0; i < rows.length; i++){
+    var r = rows[i].getBoundingClientRect();
+    if (y < r.top + r.height / 2){ k = i; break; }
+  }
+  pendingK = k;
+  list.insertBefore(insLine, rows[k] || null);
+}
+
+function wireZone(list, isEnc){
+  var depth = 0;
+  list.addEventListener('dragenter', function(ev){
+    if (!drag) return;
+    ev.preventDefault(); depth++; list.classList.add('over');
+  });
+  /* A depth counter, not a flag: dragleave fires at every element boundary
+     crossed inside the list, so a boolean flickers off halfway down. */
+  list.addEventListener('dragleave', function(){
+    if (!drag) return;
+    depth--;
+    if (depth <= 0){ depth = 0; list.classList.remove('over'); clearIns(); }
+  });
+  list.addEventListener('dragover', function(ev){
+    if (!drag) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = drag.kind === 'pool' ? 'copy' : 'move';
+    placeIns(list, ev.clientY);
+  });
+  list.addEventListener('drop', function(ev){
+    if (!drag) return;
+    ev.preventDefault(); ev.stopPropagation();
+    depth = 0; list.classList.remove('over');
+    var k = pendingK;
+    clearIns();
+    if (drag.kind === 'pool'){
+      if (!usedG(drag.g)){
+        insertAt((isEnc ? encAt : 0) + k, { g: drag.g, v: drag.v }, isEnc);
+        openG = -1;
+      }
+    } else {
+      var entry = set[drag.i];
+      removeAt(drag.i);
+      var to = (isEnc ? encAt : 0) + k;
+      if (to > set.length) to = set.length;
+      insertAt(to, entry, isEnc);
+    }
+    drag = null;
+    $('#pool').classList.remove('binding');
+    render();
+  });
+}
+
+/* Dropped anywhere that is not a list: off the setlist it comes. The list
+   handlers stop propagation, so this only ever sees a genuine miss. */
+document.addEventListener('dragover', function(ev){ if (drag) ev.preventDefault(); });
+document.addEventListener('drop', function(ev){
+  if (!drag) return;
+  ev.preventDefault();
+  if (drag.kind === 'set'){ removeAt(drag.i); }
+  drag = null; clearIns();
+  $('#pool').classList.remove('binding');
+  render();
+});
+
+/* ── printing, and the copy you keep ── */
+
+function saveFile(name, text){
+  var blob = new Blob([text], { type: 'text/html;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+
+function saveSheet(){
+  var css = document.getElementById('sheetcss').textContent;
+  var node = $('#sheet').cloneNode(true);
+  Array.prototype.slice.call(node.querySelectorAll('.noprint')).forEach(function(el){
+    el.parentNode.removeChild(el);
+  });
+  var name = (DATA.band || DATA.title || 'setlist');
+  var html = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+    '<meta http-equiv="Content-Security-Policy" content="' + CSP + '">\n' +
+    '<title>' + esc(name) + '</title>\n<style>\n' +
+    'html,body{margin:0;background:#2b2a2f;padding:26px 14px;' +
+    'font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}\n' +
+    css + '\n@media print{html,body{background:#fff;padding:0}}\n@page{margin:13mm}\n' +
+    '</style>\n</head>\n<body>\n<div class="paper">\n' + node.outerHTML +
+    '\n</div>\n</body>\n</html>\n';
+  saveFile(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    .slice(0, 50) + '-setlist.html', html);
+}
+
+/* window.print() is ignored inside a sandboxed frame without allow-modals,
+   and it is ignored silently — no throw to catch. So say so rather than
+   letting the button look broken. */
+var framed = false;
+try { framed = window.top !== window.self; } catch (e) { framed = true; }
+
+$('#btnPrint').addEventListener('click', function(){
+  if (framed){
+    $('#printnote').textContent = 'This is running inside a frame, and a framed page ' +
+      'is not allowed to open the print dialogue. Download this file, open it, and ' +
+      'print from there — or use Save the sheet.';
+  }
+  try { window.print(); } catch (e) {}
+});
+$('#btnSave').addEventListener('click', saveSheet);
+$('#btnClear').addEventListener('click', function(){
+  set = []; encAt = 0; openG = -1; render();
+});
+$('#tkTimes').addEventListener('change', function(ev){
+  ptimes = ev.target.checked; render();
+});
+$('#find').addEventListener('input', function(ev){
+  filter = ev.target.value.trim().toLowerCase();
+  openG = -1;
+  paintPool();
+});
+
+wireZone($('#main'), false);
+wireZone($('#enc'), true);
+
+/* ── start ── */
+
+$('#shBand').textContent = DATA.band || 'The Band';
+$('#shVenue').textContent = DATA.venue || '';
+$('#shDate').textContent = DATA.date || '';
+
+var saved = mem.get(null);
+if (saved && Array.isArray(saved.set)){
+  var seen = {};
+  saved.set.forEach(function(e){
+    if (!e || typeof e.g !== 'number') return;
+    if (e.g < 0 || e.g >= GROUPS.length || seen[e.g]) return;
+    var vi = (typeof e.v === 'number' && e.v >= 0 && e.v < GROUPS[e.g].v.length) ? e.v : 0;
+    seen[e.g] = 1;
+    set.push({ g: e.g, v: vi });
+  });
+  encAt = Math.max(0, Math.min(set.length, saved.encAt | 0));
+  ptimes = !!saved.ptimes;
+  $('#tkTimes').checked = ptimes;
+}
+render();
+
+</script>
+
+
+</body></html>
