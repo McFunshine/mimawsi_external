@@ -32,4 +32,4 @@ shasum -a 256 tools/dina-s-dream-msp-set-list/tool.html
 curl -s https://www.mimawsi.com/tools/a04f2e0b-b129-44ad-ab95-c7cb58b91823.html | shasum -a 256
 ```
 
-Both must print `89736c06adf801fae5b3219599fb5cbcbfd87274f3acd526e70c264297d95c14`.
+Both must print `4c542b62f02dc8c94d71a439c1ea553b2ae836297b16dfb977a9cf42d7dc1eab`.
